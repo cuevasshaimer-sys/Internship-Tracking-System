@@ -2,225 +2,164 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#ff7300">
-  <title>InternTrack | Internship Tracking System</title>
-  <link rel="stylesheet" href="css/style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#ff7300">
+    <title>InternTrack | Internship Tracking System</title>
+    <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 
-  <!-- LOGIN PAGE -->
-  <section id="login-page" class="auth-page">
-    <div class="auth-decoration auth-decoration-one"></div>
-    <div class="auth-decoration auth-decoration-two"></div>
+    <!-- LOGIN PAGE -->
+    <section id="login-page" class="auth-page">
+        <div class="auth-box">
+            <img src="images/logs.png" alt="InternTrack Logo" class="login-logo">
+            <p class="eyebrow">INTERNSHIP TRACKING SYSTEM</p>
+            <h1>Welcome Back</h1>
+            <p class="muted">Sign in to continue to InternTrack.</p>
 
-    <div class="auth-box">
-      <img src="images/logs.png" alt="InternTrack logo"
-           class="auth-logo" onerror="this.style.display='none'">
+            <form id="login-form">
+                <label for="login-id">ID Number</label>
+                <input id="login-id" type="text" placeholder="Enter your ID number" required>
 
-      <div class="eyebrow">INTERNSHIP MANAGEMENT PORTAL</div>
-      <h1>Welcome to <span>InternTrack</span></h1>
-      <p class="subtitle">Sign in to manage your internship journey.</p>
+                <label for="login-password">Password</label>
+                <input id="login-password" type="password" placeholder="Enter your password" required>
 
-      <form id="login-form">
-        <label for="login-id">ID Number</label>
-        <input id="login-id" autocomplete="username"
-               placeholder="Enter your ID number" required>
+                <button type="submit" class="primary-btn full-btn">Sign In</button>
+                <p id="login-message" class="form-message"></p>
+            </form>
 
-        <label for="login-password">Password</label>
-        <input id="login-password" type="password"
-               autocomplete="current-password"
-               placeholder="Enter your password" required>
-
-        <button class="text-button forgot-link"
-                type="button" id="show-forgot">
-          Forgot password?
-        </button>
-
-        <p id="login-error" class="message error" role="alert"></p>
-
-        <button class="primary-btn" type="submit">
-          Sign In <span aria-hidden="true">→</span>
-        </button>
-      </form>
-
-      <p class="account-link">
-        New to InternTrack?
-        <button type="button" id="show-register">Create an account</button>
-      </p>
-
-      <p class="auth-footnote">
-        For student interns, company supervisors, and internship coordinators
-      </p>
-    </div>
-  </section>
-
-  <!-- CREATE ACCOUNT PAGE -->
-  <section id="register-page" class="auth-page hidden">
-    <div class="auth-box">
-      <img src="images/logs.png" alt="InternTrack logo"
-           class="auth-logo" onerror="this.style.display='none'">
-
-      <div class="eyebrow">GET STARTED</div>
-      <h1>Create your account</h1>
-      <p class="subtitle">Choose the role assigned to you.</p>
-
-      <form id="register-form">
-        <label for="register-name">Full Name</label>
-        <input id="register-name" autocomplete="name"
-               placeholder="Enter your full name" required>
-
-        <label for="register-id">ID Number</label>
-        <input id="register-id" autocomplete="username"
-               placeholder="Enter your ID number"
-               minlength="5" required>
-
-        <label for="register-role">Account Role</label>
-        <select id="register-role" required>
-          <option value="student">Student Intern</option>
-          <option value="supervisor">Company / Internship Supervisor</option>
-          <option value="coordinator">Internship Coordinator</option>
-        </select>
-
-        <label for="register-password">Password</label>
-        <input id="register-password" type="password"
-               autocomplete="new-password"
-               placeholder="At least 6 characters"
-               minlength="6" required>
-
-        <label for="register-confirm">Confirm Password</label>
-        <input id="register-confirm" type="password"
-               autocomplete="new-password"
-               placeholder="Re-enter your password" required>
-
-        <p id="register-error" class="message error" role="alert"></p>
-        <p id="register-success" class="message success" role="status"></p>
-
-        <button class="primary-btn" type="submit">
-          Create Account <span aria-hidden="true">→</span>
-        </button>
-      </form>
-
-      <p class="account-link">
-        Already registered?
-        <button type="button" id="show-login">Sign in</button>
-      </p>
-
-      <p class="auth-footnote">
-        Demo note: account data is saved in this browser only.
-      </p>
-    </div>
-  </section>
-
-  <!-- FORGOT PASSWORD PAGE -->
-  <section id="forgot-page" class="auth-page hidden">
-    <div class="auth-box">
-      <img src="images/logs.png" alt="InternTrack logo"
-           class="auth-logo" onerror="this.style.display='none'">
-
-      <div class="eyebrow">ACCOUNT RECOVERY</div>
-      <h1>Reset password</h1>
-      <p class="subtitle">
-        Enter your ID and account role to set a new password.
-      </p>
-
-      <form id="forgot-form">
-        <label for="forgot-id">ID Number</label>
-        <input id="forgot-id" placeholder="Enter your ID number" required>
-
-        <label for="forgot-role">Account Role</label>
-        <select id="forgot-role" required>
-          <option value="student">Student Intern</option>
-          <option value="supervisor">Supervisor</option>
-          <option value="coordinator">Coordinator</option>
-        </select>
-
-        <label for="forgot-password">New Password</label>
-        <input id="forgot-password" type="password"
-               minlength="6" placeholder="At least 6 characters" required>
-
-        <label for="forgot-confirm">Confirm New Password</label>
-        <input id="forgot-confirm" type="password"
-               placeholder="Re-enter new password" required>
-
-        <p id="forgot-error" class="message error" role="alert"></p>
-        <p id="forgot-success" class="message success" role="status"></p>
-
-        <button class="primary-btn" type="submit">Reset Password</button>
-      </form>
-
-      <p class="account-link">
-        <button type="button" id="forgot-back">Back to sign in</button>
-      </p>
-    </div>
-  </section>
-
-  <!-- MAIN SYSTEM -->
-  <section id="system-page" class="app-shell hidden">
-
-    <aside class="sidebar">
-      <a href="#" class="brand" aria-label="InternTrack home">
-        <img src="images/logs.png" alt="InternTrack logo"
-             class="brand-logo" onerror="this.style.display='none'">
-
-        <span>
-          <strong>InternTrack</strong>
-          <small id="brand-role">Internship Portal</small>
-        </span>
-      </a>
-
-      <div class="nav-label">WORKSPACE</div>
-      <nav id="sidebar-nav" aria-label="Main navigation"></nav>
-
-      <div class="sidebar-bottom">
-        <button type="button" id="theme-toggle" class="theme-toggle">
-          <span id="theme-icon">☾</span>
-          <span id="theme-label">Dark mode</span>
-        </button>
-
-        <div class="sidebar-user">
-          <div id="sidebar-avatar" class="avatar">IT</div>
-          <div class="sidebar-user-text">
-            <strong id="sidebar-name">User</strong>
-            <small id="sidebar-role">Role</small>
-          </div>
+            <button type="button" id="show-forgot" class="text-btn">Forgot Password?</button>
+            <p class="auth-footer">Don't have an account?
+                <button type="button" id="show-register" class="text-btn">Create Account</button>
+            </p>
         </div>
+    </section>
 
-        <button id="logout-btn" class="logout-btn">
-          ↪ <span>Sign out</span>
-        </button>
-      </div>
-    </aside>
+    <!-- REGISTER PAGE -->
+    <section id="register-page" class="auth-page hidden">
+        <div class="auth-box">
+            <div class="brand-mark">IT</div>
+            <p class="eyebrow">JOIN INTERNTRACK</p>
+            <h1>Create Account</h1>
+            <p class="muted">Enter your information to get started.</p>
 
-    <main class="main-content">
-      <header class="topbar">
-        <div>
-          <div class="breadcrumb">
-            WORKSPACE <span>/</span> <span id="breadcrumb-page">Dashboard</span>
-          </div>
-          <h1 id="page-title">Dashboard</h1>
-          <p id="page-subtitle">Here is your internship overview.</p>
+            <form id="register-form">
+                <label for="register-name">Full Name</label>
+                <input id="register-name" type="text" placeholder="Enter your full name" required>
+
+                <label for="register-id">ID Number</label>
+                <input id="register-id" type="text" placeholder="Enter your ID number" required>
+
+                <label for="register-role">Account Role</label>
+                <select id="register-role" required>
+                    <option value="student">Student</option>
+                    <option value="supervisor">Supervisor</option>
+                    <option value="coordinator">Coordinator</option>
+                </select>
+
+                <label for="register-password">Password</label>
+                <input id="register-password" type="password" placeholder="At least 6 characters" required>
+
+                <label for="register-confirm">Confirm Password</label>
+                <input id="register-confirm" type="password" placeholder="Confirm your password" required>
+
+                <button type="submit" class="primary-btn full-btn">Create Account</button>
+                <p id="register-message" class="form-message"></p>
+            </form>
+
+            <p class="auth-footer">Already have an account?
+                <button type="button" id="show-login" class="text-btn">Sign In</button>
+            </p>
         </div>
+    </section>
 
-        <div class="topbar-right">
-          <div class="date-chip" id="today-label"></div>
-          <div class="top-avatar" id="header-avatar">IT</div>
-          <div class="top-user">
-            <strong id="header-name">User</strong>
-            <span id="header-role">Role</span>
-          </div>
+    <!-- FORGOT PASSWORD PAGE -->
+    <section id="forgot-page" class="auth-page hidden">
+        <div class="auth-box">
+            <div class="brand-mark">IT</div>
+            <p class="eyebrow">ACCOUNT RECOVERY</p>
+            <h1>Reset Password</h1>
+            <p class="muted">Enter your ID number and create a new password.</p>
+
+            <form id="forgot-form">
+                <label for="forgot-id">ID Number</label>
+                <input id="forgot-id" type="text" placeholder="Enter your registered ID" required>
+
+                <label for="forgot-password">New Password</label>
+                <input id="forgot-password" type="password" placeholder="At least 6 characters" required>
+
+                <label for="forgot-confirm">Confirm New Password</label>
+                <input id="forgot-confirm" type="password" placeholder="Confirm new password" required>
+
+                <button type="submit" class="primary-btn full-btn">Reset Password</button>
+                <p id="forgot-message" class="form-message"></p>
+            </form>
+
+            <p class="auth-footer">
+                <button type="button" id="forgot-back" class="text-btn">Back to Sign In</button>
+            </p>
         </div>
-      </header>
+    </section>
 
-      <div id="content" class="content-area"></div>
+    <!-- MAIN SYSTEM -->
+    <section id="system-page" class="system-layout hidden">
 
-      <footer class="app-footer">
-        InternTrack <span>•</span> Internship Tracking System
-      </footer>
-    </main>
-  </section>
+        <aside class="sidebar">
+            <div class="sidebar-brand">
+                <img src="images/logs.png" alt="InternTrack Logo" class="sidebar-logo">
+                <div>
+                    <h2>InternTrack</h2>
+                    <p>Internship Tracking</p>
+                </div>
+            </div>
 
-  <script src="js/app.js"></script>
+            <div class="sidebar-user">
+                <div id="sidebar-avatar" class="avatar">IT</div>
+                <div class="sidebar-user-info">
+                    <strong id="sidebar-name">User</strong>
+                    <span id="sidebar-role">Student</span>
+                </div>
+            </div>
+
+            <p class="nav-label">MAIN MENU</p>
+            <nav id="sidebar-nav"></nav>
+
+            <div class="sidebar-bottom">
+                <button type="button" id="theme-toggle" class="theme-toggle">
+                    <span id="theme-icon">☀</span>
+                    <span id="theme-label">Light Mode</span>
+                </button>
+                <button type="button" id="logout-btn" class="logout-btn">
+                    <span>↪</span> Sign Out
+                </button>
+            </div>
+        </aside>
+
+        <main class="main-area">
+            <header class="topbar">
+                <div>
+                    <p class="eyebrow">INTERNTRACK WORKSPACE</p>
+                    <h1 id="page-title">Dashboard</h1>
+                    <p id="page-subtitle" class="muted">Your internship overview.</p>
+                </div>
+                <div class="topbar-user">
+                    <div id="header-avatar" class="avatar">IT</div>
+                    <div>
+                        <strong id="header-name">User</strong>
+                        <p id="header-id" class="muted">ID Number</p>
+                    </div>
+                </div>
+            </header>
+
+            <div id="content" class="content-area"></div>
+            <footer class="main-footer">InternTrack · Internship Tracking System</footer>
+        </main>
+    </section>
+
+    <!-- Libraries for QR generation and camera scanning -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <script src="js/app.js"></script>
 </body>
 </html>

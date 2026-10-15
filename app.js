@@ -1,1170 +1,1361 @@
 
-/* =========================================
-   INTERNTRACK - INTERNSHIP TRACKING SYSTEM
-   ========================================= */
-
 (() => {
-  "use strict";
+    "use strict";
 
-  // =========================================
-  // STORAGE AND ROLE SETTINGS
-  // =========================================
+    const KEYS = {
+        accounts: "internAccounts",
+        oldAccount: "internAccount",
+        session: "internLoggedIn",
+        current: "internCurrentAccountId",
+        theme: "internTheme",
+        attendance: "internAttendanceRecords",
+        requirements: "internRequirements",
+        notifications: "internNotifications"
+    };
 
-  const KEYS = {
-    accounts: "internAccounts",
-    oldAccount: "internAccount",
-    session: "internLoggedIn",
-    current: "internCurrentAccountId",
-    theme: "internTheme"
-  };
+    const roleNames = {
+        student: "Student",
+        supervisor: "Supervisor",
+        coordinator: "Coordinator"
+    };
 
-  const roleNames = {
-    student: "Student Intern",
-    supervisor: "Company Supervisor",
-    coordinator: "Internship Coordinator"
-  };
+    const menus = {
+        student: [
+            ["dashboard", "⌂", "Dashboard"],
+            ["profile", "♙", "My Profile"],
+            ["company", "▤", "Company / Placement"],
+            ["requirements", "☷", "Requirements"],
+            ["attendance", "◷", "Attendance & Hours"],
+            ["my-qr", "▦", "My QR Code"],
+            ["documents", "▧", "Documents"],
+            ["evaluation", "★", "Evaluation"],
+            ["notifications", "♧", "Notifications"]
+        ],
+        supervisor: [
+            ["dashboard", "⌂", "Dashboard"],
+            ["interns", "♙", "My Interns"],
+            ["attendance", "◷", "Attendance Records"],
+            ["scan-attendance", "▣", "Scan QR Attendance"],
+            ["requirements", "☷", "Requirements Review"],
+            ["evaluation", "★", "Evaluations"],
+            ["notifications", "♧", "Notifications"]
+        ],
+        coordinator: [
+            ["dashboard", "⌂", "Dashboard"],
+            ["students", "♙", "Students"],
+            ["companies", "▤", "Companies"],
+            ["requirements", "☷", "Requirements"],
+            ["attendance", "◷", "Attendance"],
+            ["documents", "▧", "Documents"],
+            ["progress", "↗", "Internship Progress"],
+            ["reports", "▥", "Reports"]
+        ]
+    };
 
-  // =========================================
-  // ROLE-BASED NAVIGATION
-  // Each role has its own menu.
-  // =========================================
+    const subtitles = {
+        dashboard: "Your internship overview.",
+        profile: "View your registered student information.",
+        company: "View your internship placement information.",
+        requirements: "Monitor internship requirements and review status.",
+        attendance: "Review attendance and rendered internship hours.",
+        "my-qr": "Show your personal QR code to your supervisor.",
+        "scan-attendance": "Scan a student's QR code to record attendance.",
+        documents: "Manage internship document information.",
+        evaluation: "Review internship evaluation information.",
+        notifications: "View updates and reminders.",
+        interns: "View registered student interns.",
+        students: "Monitor student internship information.",
+        companies: "View registered company information.",
+        progress: "Monitor student internship progress.",
+        reports: "View attendance and internship summaries."
+    };
 
-  const roleMenus = {
-    student: [
-      ["dashboard", "▦", "Dashboard"],
-      ["profile", "◉", "My Profile"],
-      ["company", "⌂", "Company / Placement"],
-      ["requirements", "☷", "Requirements"],
-      ["attendance", "◷", "Attendance & Hours"],
-      ["documents", "▤", "My Documents"],
-      ["evaluation", "☆", "Evaluation"],
-      ["notifications", "♧", "Notifications"]
-    ],
+    const $ = (selector) => document.querySelector(selector);
 
-    supervisor: [
-      ["dashboard", "▦", "Dashboard"],
-      ["interns", "♙", "Assigned Interns"],
-      ["attendance", "◷", "Attendance Review"],
-      ["requirements", "☷", "Requirements Review"],
-      ["evaluation", "☆", "Evaluations"],
-      ["notifications", "♧", "Notifications"]
-    ],
+    let currentPage = "dashboard";
+    let activeScanner = null;
+    let scannerStarting = false;
+    let scannerBusy = false;
+    let scannerStartButton = null;
+    let scannerStopButton = null;
 
-    coordinator: [
-      ["dashboard", "▦", "Dashboard"],
-      ["students", "♙", "Student Records"],
-      ["companies", "⌂", "Company Records"],
-      ["requirements", "☷", "Requirements"],
-      ["attendance", "◷", "Attendance & Hours"],
-      ["documents", "▤", "Documents"],
-      ["progress", "↗", "Progress Monitoring"],
-      ["reports", "▥", "Reports"]
-    ]
-  };
-
-  // =========================================
-  // HELPER FUNCTIONS
-  // =========================================
-
-  const $ = (id) => document.getElementById(id);
-
-  const pages = [
-    "login-page",
-    "register-page",
-    "forgot-page",
-    "system-page"
-  ];
-
-  let accounts = loadAccounts();
-  let currentAccount = null;
-  let activePage = "dashboard";
-
-  function loadAccounts() {
-    try {
-      const saved = JSON.parse(
-        localStorage.getItem(KEYS.accounts) || "[]"
-      );
-
-      if (Array.isArray(saved) && saved.length) {
-        return saved;
-      }
-
-      // Migrate the previous single-account version.
-      const old = JSON.parse(
-        localStorage.getItem(KEYS.oldAccount) || "null"
-      );
-
-      if (old && old.id && old.password) {
-        const migrated = [{
-          ...old,
-          role: old.role || "student"
-        }];
-
-        localStorage.setItem(
-          KEYS.accounts,
-          JSON.stringify(migrated)
-        );
-
-        return migrated;
-      }
-    } catch (error) {
-      console.warn(
-        "Could not read saved demo accounts.",
-        error
-      );
+    function readJSON(key, fallback = []) {
+        try {
+            const value = localStorage.getItem(key);
+            return value ? JSON.parse(value) : fallback;
+        } catch (error) {
+            console.error("Unable to read local data:", error);
+            return fallback;
+        }
     }
 
-    return [];
-  }
+    function saveJSON(key, value) {
+        localStorage.setItem(key, JSON.stringify(value));
+    }
 
-  function saveAccounts() {
-    localStorage.setItem(
-      KEYS.accounts,
-      JSON.stringify(accounts)
-    );
-  }
+    function loadAccounts() {
+        let accounts = readJSON(KEYS.accounts, []);
 
-  function showOnly(pageId) {
-    pages.forEach(id => {
-      $(id).classList.toggle(
-        "hidden",
-        id !== pageId
-      );
-    });
-  }
+        if (!Array.isArray(accounts)) {
+            accounts = [];
+        }
 
-  function message(id, text) {
-    $(id).textContent = text || "";
-  }
+        const oldAccount = readJSON(KEYS.oldAccount, null);
 
-  // Escape user-provided text before inserting it into HTML.
-  function escapeHTML(value) {
-    return String(value ?? "").replace(
-      /[&<>"']/g,
-      character => ({
-        "&": "&amp;",
-        "<": "&lt;",
-        ">": "&gt;",
-        '"': "&quot;",
-        "'": "&#39;"
-      })[character]
-    );
-  }
+        if (oldAccount && typeof oldAccount === "object") {
+            const oldId = String(oldAccount.id || oldAccount.idNumber || "");
+            const exists = accounts.some(account => String(account.id) === oldId);
 
-  function initials(name) {
-    return String(name || "IT")
-      .trim()
-      .split(/\s+/)
-      .slice(0, 2)
-      .map(part => part[0]?.toUpperCase() || "")
-      .join("") || "IT";
-  }
+            if (oldId && !exists) {
+                accounts.push({
+                    name: oldAccount.name || oldAccount.fullName || "Student",
+                    id: oldId,
+                    role: oldAccount.role || "student",
+                    password: oldAccount.password || ""
+                });
+                saveJSON(KEYS.accounts, accounts);
+            }
+        }
 
-  function titleFor(page) {
-    const menu = (
-      roleMenus[currentAccount.role] || []
-    ).find(item => item[0] === page);
+        return accounts;
+    }
 
-    return menu ? menu[2] : "Dashboard";
-  }
+    function saveAccounts(accounts) {
+        saveJSON(KEYS.accounts, accounts);
+    }
 
-  function goToAuth(page) {
-    showOnly(page);
+    function getAttendance() {
+        const records = readJSON(KEYS.attendance, []);
+        return Array.isArray(records) ? records : [];
+    }
 
-    [
-      "login-error",
-      "register-error",
-      "register-success",
-      "forgot-error",
-      "forgot-success"
-    ].forEach(id => {
-      if ($(id)) {
-        message(id, "");
-      }
-    });
-  }
+    function saveAttendance(records) {
+        saveJSON(KEYS.attendance, records);
+    }
 
-  // =========================================
-  // LOGIN SUCCESS
-  // =========================================
+    function getCurrentAccount() {
+        const id = localStorage.getItem(KEYS.current);
+        if (!id) return null;
 
-  function signIn(account) {
-    currentAccount = account;
+        return loadAccounts().find(account => String(account.id) === String(id)) || null;
+    }
 
-    localStorage.setItem(KEYS.session, "true");
-    localStorage.setItem(KEYS.current, account.id);
+    function getRole(account = getCurrentAccount()) {
+        return account && menus[account.role] ? account.role : null;
+    }
 
-    showOnly("system-page");
-
-    buildNavigation();
-    fillUserDetails();
-
-    applyTheme(
-      localStorage.getItem(KEYS.theme) || "light"
-    );
-
-    const now = new Date();
-
-    $("today-label").textContent =
-      now.toLocaleDateString(undefined, {
-        month: "short",
-        day: "numeric",
-        year: "numeric"
-      });
-
-    showPage("dashboard");
-  }
-
-  // =========================================
-  // DISPLAY LOGGED-IN USER
-  // =========================================
-
-  function fillUserDetails() {
-    const role = roleNames[currentAccount.role] || "User";
-
-    $("brand-role").textContent = role;
-    $("sidebar-name").textContent = currentAccount.name;
-    $("sidebar-role").textContent = role;
-    $("header-name").textContent = currentAccount.name;
-    $("header-role").textContent = role;
-
-    const userInitials = initials(currentAccount.name);
-
-    $("sidebar-avatar").textContent = userInitials;
-    $("header-avatar").textContent = userInitials;
-  }
-
-  // =========================================
-  // BUILD ROLE-SPECIFIC SIDEBAR
-  // =========================================
-
-  function buildNavigation() {
-    const menu = roleMenus[currentAccount.role]
-      || roleMenus.student;
-
-    $("sidebar-nav").innerHTML = menu.map(
-      ([page, icon, label]) => `
-        <button
-          type="button"
-          class="menu-btn"
-          data-page="${page}"
-        >
-          <span class="nav-icon" aria-hidden="true">${icon}</span>
-          <span>${label}</span>
-          <span class="nav-arrow">›</span>
-        </button>
-      `
-    ).join("");
-
-    $("sidebar-nav")
-      .querySelectorAll(".menu-btn")
-      .forEach(button => {
-        button.addEventListener("click", () => {
-          showPage(button.dataset.page);
+    function showOnly(pageId) {
+        ["login-page", "register-page", "forgot-page", "system-page"].forEach(id => {
+            const element = document.getElementById(id);
+            if (element) element.classList.toggle("hidden", id !== pageId);
         });
-      });
-  }
-
-  // =========================================
-  // PAGE SUBTITLES
-  // =========================================
-
-  const pageSubtitles = {
-    dashboard: "Here is your internship overview.",
-    profile: "Review your personal internship profile.",
-    company: "View your assigned internship placement.",
-    requirements: "Review internship requirement status.",
-    attendance: "Track and review internship attendance and rendered hours.",
-    documents: "Keep internship files organized.",
-    evaluation: "Review performance feedback and evaluation.",
-    notifications: "Stay updated with internship reminders.",
-    interns: "Monitor the interns assigned to your company.",
-    students: "Manage student internship records.",
-    companies: "Review company and placement information.",
-    progress: "Monitor internship progress across students.",
-    reports: "Review report categories available for monitoring."
-  };
-
-  // =========================================
-  // DISPLAY PAGE
-  // =========================================
-
-  function showPage(page) {
-    if (!currentAccount) {
-      goToAuth("login-page");
-      return;
     }
 
-    // Only allow pages assigned to the current role.
-    const allowed = (
-      roleMenus[currentAccount.role] || []
-    ).map(item => item[0]);
+    function setMessage(selector, message, type = "error") {
+        const element = $(selector);
+        if (!element) return;
 
-    if (!allowed.includes(page)) {
-      page = "dashboard";
+        element.textContent = message;
+        element.className = "form-message " + type;
     }
 
-    activePage = page;
+    function clearMessage(selector) {
+        const element = $(selector);
+        if (element) {
+            element.textContent = "";
+            element.className = "form-message";
+        }
+    }
 
-    $("page-title").textContent = titleFor(page);
-    $("breadcrumb-page").textContent = titleFor(page);
+    function escapeHTML(value) {
+        return String(value ?? "").replace(/[&<>"']/g, character => ({
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            '"': "&quot;",
+            "'": "&#039;"
+        })[character]);
+    }
 
-    $("page-subtitle").textContent =
-      pageSubtitles[page] ||
-      "Manage your internship information.";
+    function initials(name) {
+        return String(name || "IT")
+            .trim()
+            .split(/\s+/)
+            .slice(0, 2)
+            .map(part => part.charAt(0))
+            .join("")
+            .toUpperCase();
+    }
 
-    $("sidebar-nav")
-      .querySelectorAll(".menu-btn")
-      .forEach(button => {
-        button.classList.toggle(
-          "active",
-          button.dataset.page === page
+    function formatDate(dateString) {
+        if (!dateString) return "—";
+
+        const date = new Date(dateString + "T00:00:00");
+        if (Number.isNaN(date.getTime())) return escapeHTML(dateString);
+
+        return date.toLocaleDateString("en-PH", {
+            year: "numeric",
+            month: "short",
+            day: "numeric"
+        });
+    }
+
+    function todayString() {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, "0");
+        const day = String(now.getDate()).padStart(2, "0");
+
+        return `${year}-${month}-${day}`;
+    }
+
+    function timeString(date = new Date()) {
+        return date.toLocaleTimeString("en-PH", {
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: true
+        });
+    }
+
+    function parseTime(time) {
+        if (!time) return null;
+
+        const match = String(time).match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+        if (!match) return null;
+
+        let hour = Number(match[1]);
+        const minute = Number(match[2]);
+        const meridiem = match[3].toUpperCase();
+
+        if (hour < 1 || hour > 12 || minute < 0 || minute > 59) return null;
+
+        if (meridiem === "AM" && hour === 12) hour = 0;
+        if (meridiem === "PM" && hour !== 12) hour += 12;
+
+        return hour * 60 + minute;
+    }
+
+    function hoursBetween(timeIn, timeOut) {
+        const start = parseTime(timeIn);
+        const end = parseTime(timeOut);
+
+        if (start === null || end === null || end < start) return 0;
+        return Number(((end - start) / 60).toFixed(2));
+    }
+
+    function totalHours(records) {
+        return records.reduce((sum, record) => sum + Number(record.hours || 0), 0);
+    }
+
+    function statusBadge(status) {
+        let type = "neutral";
+
+        if (["Completed", "Present", "Approved", "Time Out Recorded"].includes(status)) {
+            type = "success";
+        } else if (["Pending", "In Progress", "Timed In"].includes(status)) {
+            type = "warning";
+        } else if (["Rejected", "Absent"].includes(status)) {
+            type = "danger";
+        }
+
+        return `<span class="badge ${type}">${escapeHTML(status)}</span>`;
+    }
+
+    function emptyState(title, description, icon = "▧") {
+        return `
+            <div class="empty-state">
+                <div class="empty-icon">${icon}</div>
+                <h3>${escapeHTML(title)}</h3>
+                <p>${escapeHTML(description)}</p>
+            </div>`;
+    }
+
+    function statCard(label, value, icon, note = "") {
+        return `
+            <article class="stat-card">
+                <div class="stat-top">
+                    <span class="stat-label">${escapeHTML(label)}</span>
+                    <span class="stat-icon">${icon}</span>
+                </div>
+                <div class="stat-value">${escapeHTML(value)}</div>
+                <div class="stat-note">${escapeHTML(note)}</div>
+            </article>`;
+    }
+
+    function panel(title, content, note = "") {
+        return `
+            <section class="panel">
+                <div class="panel-header">
+                    <div>
+                        <h3>${escapeHTML(title)}</h3>
+                        ${note ? `<p>${escapeHTML(note)}</p>` : ""}
+                    </div>
+                </div>
+                ${content}
+            </section>`;
+    }
+
+    function table(headers, rows) {
+        return `
+            <div class="table-wrap">
+                <table>
+                    <thead><tr>${headers.map(header => `<th>${escapeHTML(header)}</th>`).join("")}</tr></thead>
+                    <tbody>${rows.length ? rows.map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join("")}</tr>`).join("") : `
+                        <tr><td colspan="${headers.length}">
+                            ${emptyState("No records yet", "Records will appear here when available.")}
+                        </td></tr>`}
+                    </tbody>
+                </table>
+            </div>`;
+    }
+
+    function buildNavigation(role) {
+        const nav = $("#sidebar-nav");
+        nav.innerHTML = "";
+
+        (menus[role] || []).forEach(([id, icon, label]) => {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "menu-btn";
+            button.dataset.page = id;
+            button.innerHTML = `
+                <span class="menu-icon">${icon}</span>
+                <span>${escapeHTML(label)}</span>`;
+
+            button.addEventListener("click", () => showPage(id));
+            nav.appendChild(button);
+        });
+    }
+
+    function applyTheme() {
+        const savedTheme = localStorage.getItem(KEYS.theme) || "light";
+        const theme = savedTheme === "dark" ? "dark" : "light";
+
+        document.documentElement.dataset.theme = theme;
+
+        const icon = $("#theme-icon");
+        const label = $("#theme-label");
+
+        if (icon) icon.textContent = theme === "dark" ? "☾" : "☀";
+        if (label) label.textContent = theme === "dark" ? "Light Mode" : "Dark Mode";
+    }
+
+    function updateAccountHeader(account) {
+        const role = getRole(account);
+
+        $("#sidebar-name").textContent = account.name;
+        $("#sidebar-role").textContent = roleNames[role] || roleNames.student;
+        $("#sidebar-avatar").textContent = initials(account.name);
+
+        $("#header-name").textContent = account.name;
+        $("#header-id").textContent = `ID: ${account.id}`;
+        $("#header-avatar").textContent = initials(account.name);
+    }
+
+    function signIn(account) {
+        localStorage.setItem(KEYS.current, String(account.id));
+        localStorage.setItem(KEYS.session, "true");
+
+        updateAccountHeader(account);
+        buildNavigation(account.role);
+        applyTheme();
+        showOnly("system-page");
+        showPage("dashboard");
+    }
+
+    function signOut() {
+        stopScanner();
+        localStorage.removeItem(KEYS.session);
+        localStorage.removeItem(KEYS.current);
+        currentPage = "dashboard";
+        showOnly("login-page");
+
+        if ($("#login-form")) $("#login-form").reset();
+        clearMessage("#login-message");
+    }
+
+    function showPage(pageId) {
+        const account = getCurrentAccount();
+        const role = getRole(account);
+
+        if (!account || !role) {
+            signOut();
+            return;
+        }
+
+        const allowedPages = (menus[role] || []).map(item => item[0]);
+
+        if (!allowedPages.includes(pageId)) {
+            pageId = "dashboard";
+        }
+
+        if (currentPage === "scan-attendance" && pageId !== "scan-attendance") {
+            stopScanner();
+        }
+
+        currentPage = pageId;
+
+        document.querySelectorAll(".menu-btn").forEach(button => {
+            button.classList.toggle("active", button.dataset.page === pageId);
+        });
+
+        const menuItem = menus[role].find(item => item[0] === pageId);
+
+        $("#page-title").textContent = menuItem ? menuItem[2] : "Dashboard";
+        $("#page-subtitle").textContent = subtitles[pageId] || "Manage internship information.";
+
+        $("#content").innerHTML = renderPage(pageId, account, role);
+        bindPageActions(pageId, account, role);
+    }
+
+    function renderPage(pageId, account, role) {
+        const renderers = {
+            dashboard: renderDashboard,
+            profile: renderProfile,
+            company: renderCompany,
+            requirements: renderRequirements,
+            attendance: renderAttendance,
+            "my-qr": renderMyQR,
+            "scan-attendance": renderScanner,
+            documents: renderDocuments,
+            evaluation: renderEvaluation,
+            notifications: renderNotifications,
+            interns: renderInterns,
+            students: renderStudents,
+            companies: renderCompanies,
+            progress: renderProgress,
+            reports: renderReports
+        };
+
+        const renderer = renderers[pageId];
+        return renderer ? renderer(account, role) : emptyState("Page not found", "Choose a page from the sidebar.");
+    }
+
+    function visibleAttendance(account, role) {
+        const records = getAttendance();
+
+        if (role === "student") {
+            return records.filter(record => String(record.studentId) === String(account.id));
+        }
+
+        return records;
+    }
+
+    function renderDashboard(account, role) {
+        const allAccounts = loadAccounts();
+        const students = allAccounts.filter(item => item.role === "student");
+        const attendance = getAttendance();
+        const todayRecords = attendance.filter(record => record.date === todayString());
+        const myRecords = attendance.filter(record => String(record.studentId) === String(account.id));
+
+        let cards = "";
+        let intro = "";
+
+        if (role === "student") {
+            cards = [
+                statCard("Attendance Records", myRecords.length, "◷", "Your recorded attendance"),
+                statCard("Rendered Hours", totalHours(myRecords).toFixed(2), "⌛", "Completed hours"),
+                statCard("Requirements", getRequirements(account).length, "☷", "Your requirement records"),
+                statCard("Account Role", "Student", "♙", "Student account")
+            ].join("");
+
+            intro = `Welcome, ${account.name}! Check your internship information, attendance, and personal QR code here.`;
+        } else if (role === "supervisor") {
+            cards = [
+                statCard("Registered Students", students.length, "♙", "Student accounts in this demo"),
+                statCard("Today's Attendance", todayRecords.length, "◷", "Records for today"),
+                statCard("Completed Time Outs", todayRecords.filter(item => item.timeOut).length, "✓", "Attendance completed"),
+                statCard("Open Attendance", todayRecords.filter(item => !item.timeOut).length, "⌛", "Awaiting time out")
+            ].join("");
+
+            intro = `Welcome, ${account.name}! Use the QR scanner to record your interns' time in and time out.`;
+        } else {
+            cards = [
+                statCard("Registered Students", students.length, "♙", "Student accounts"),
+                statCard("Supervisors", allAccounts.filter(item => item.role === "supervisor").length, "♧", "Supervisor accounts"),
+                statCard("Attendance Records", attendance.length, "◷", "All saved records"),
+                statCard("Rendered Hours", totalHours(attendance).toFixed(2), "⌛", "Completed attendance hours")
+            ].join("");
+
+            intro = `Welcome, ${account.name}! Monitor registered accounts and internship attendance information.`;
+        }
+
+        const recentRecords = visibleAttendance(account, role).slice(-5).reverse();
+        const recentRows = recentRecords.map(record => [
+            escapeHTML(record.studentName),
+            escapeHTML(formatDate(record.date)),
+            escapeHTML(record.timeIn || "—"),
+            escapeHTML(record.timeOut || "—"),
+            `${Number(record.hours || 0).toFixed(2)} hrs`
+        ]);
+
+        return `
+            <div class="welcome-banner">
+                <h2>Welcome to InternTrack</h2>
+                <p>${escapeHTML(intro)}</p>
+            </div>
+            <div class="card-grid">${cards}</div>
+            ${panel(
+                role === "student" ? "My Recent Attendance" : "Recent Attendance Records",
+                table(["Student", "Date", "Time In", "Time Out", "Hours"], recentRows),
+                "Latest attendance records saved in this browser."
+            )}`;
+    }
+
+    function renderProfile(account, role) {
+        return `
+            <div class="page-heading">
+                <div>
+                    <h2>My Profile</h2>
+                    <p class="muted">Your account information.</p>
+                </div>
+            </div>
+            <div class="panel">
+                <div class="info-grid">
+                    <div class="info-card"><span>Full Name</span><strong>${escapeHTML(account.name)}</strong></div>
+                    <div class="info-card"><span>ID Number</span><strong>${escapeHTML(account.id)}</strong></div>
+                    <div class="info-card"><span>Role</span><strong>${escapeHTML(roleNames[role])}</strong></div>
+                    <div class="info-card"><span>Account Status</span><strong>${statusBadge("Active")}</strong></div>
+                </div>
+            </div>`;
+    }
+
+    function renderCompany(account) {
+        return `
+            ${panel(
+                "Company / Placement",
+                `<div class="notice">Your internship placement details can be added here when your company information is available.</div>
+                 <div class="info-grid">
+                    <div class="info-card"><span>Student Name</span><strong>${escapeHTML(account.name)}</strong></div>
+                    <div class="info-card"><span>Student ID</span><strong>${escapeHTML(account.id)}</strong></div>
+                    <div class="info-card"><span>Company Name</span><strong>Not yet assigned</strong></div>
+                    <div class="info-card"><span>Placement Status</span><strong>${statusBadge("Pending")}</strong></div>
+                 </div>`
+            )}`;
+    }
+
+    function getRequirements(account) {
+        const all = readJSON(KEYS.requirements, []);
+        return Array.isArray(all)
+            ? all.filter(item => String(item.studentId) === String(account.id))
+            : [];
+    }
+
+    function renderRequirements(account, role) {
+        const allRequirements = readJSON(KEYS.requirements, []);
+        let records;
+
+        if (role === "student") {
+            records = getRequirements(account);
+        } else if (role === "supervisor") {
+            records = allRequirements;
+        } else {
+            records = allRequirements;
+        }
+
+        const rows = records.map(item => {
+            const student = loadAccounts().find(user => String(user.id) === String(item.studentId));
+
+            return [
+                escapeHTML(student ? student.name : item.studentName || "Unknown"),
+                escapeHTML(item.name || "Requirement"),
+                statusBadge(item.status || "Pending"),
+                escapeHTML(item.date || "—")
+            ];
+        });
+
+        let addForm = "";
+
+        if (role === "student") {
+            addForm = `
+                <form id="requirement-form" class="inline-form">
+                    <div class="field">
+                        <label for="requirement-name">Requirement Name</label>
+                        <input id="requirement-name" required placeholder="e.g. Endorsement Letter">
+                    </div>
+                    <button class="primary-btn" type="submit">Add Requirement</button>
+                </form>`;
+        } else if (role === "supervisor" || role === "coordinator") {
+            addForm = `
+                <form id="requirement-review-form" class="form-grid">
+                    <div>
+                        <label for="review-student-id">Student ID</label>
+                        <input id="review-student-id" required placeholder="Student ID">
+                    </div>
+                    <div>
+                        <label for="review-requirement-name">Requirement Name</label>
+                        <input id="review-requirement-name" required placeholder="Requirement name">
+                    </div>
+                    <div class="full-span">
+                        <label for="review-status">Status</label>
+                        <select id="review-status">
+                            <option>Pending</option>
+                            <option>Approved</option>
+                            <option>Rejected</option>
+                        </select>
+                    </div>
+                    <div class="full-span">
+                        <button class="primary-btn" type="submit">Save Requirement Status</button>
+                    </div>
+                </form>`;
+        }
+
+        return `
+            ${panel(role === "student" ? "My Requirements" : "Requirements Review", addForm)}
+            ${panel("Requirement Records", table(["Student", "Requirement", "Status", "Date"], rows))}`;
+    }
+
+    function renderAttendance(account, role) {
+        const records = visibleAttendance(account, role).slice().reverse();
+
+        const rows = records.map(record => [
+            escapeHTML(record.studentName),
+            escapeHTML(formatDate(record.date)),
+            escapeHTML(record.timeIn || "—"),
+            escapeHTML(record.timeOut || "—"),
+            `${Number(record.hours || 0).toFixed(2)} hrs`,
+            statusBadge(record.timeOut ? "Completed" : "Timed In")
+        ]);
+
+        return `
+            ${role === "student" ? `
+                <div class="notice"><strong>Reminder:</strong> Show your QR code to your supervisor when recording your attendance.</div>
+            ` : `
+                <div class="notice"><strong>Attendance:</strong> Use Scan QR Attendance to record student time in and time out.</div>
+            `}
+            <div class="card-grid">
+                ${statCard("Total Records", records.length, "◷", "Visible attendance records")}
+                ${statCard("Rendered Hours", totalHours(records).toFixed(2), "⌛", "Completed hours")}
+                ${statCard("Completed", records.filter(item => item.timeOut).length, "✓", "Time out recorded")}
+                ${statCard("In Progress", records.filter(item => !item.timeOut).length, "◴", "Waiting for time out")}
+            </div>
+            ${panel(
+                role === "student" ? "My Attendance History" : "Attendance Records",
+                table(["Student", "Date", "Time In", "Time Out", "Hours", "Status"], rows)
+            )}`;
+    }
+
+    function renderMyQR(account, role) {
+        if (role !== "student") {
+            return emptyState("Access restricted", "Only student accounts can display a student QR code.");
+        }
+
+        return `
+            <div class="page-heading">
+                <div>
+                    <h2>My Student QR Code</h2>
+                    <p class="muted">Show this code to your supervisor for attendance.</p>
+                </div>
+            </div>
+            <div class="qr-layout">
+                <section class="qr-card">
+                    <h3>Student Identification</h3>
+                    <p>This QR code contains your InternTrack student ID.</p>
+                    <div id="student-qr" class="qr-code-box">
+                        <span class="muted">Generating QR code...</span>
+                    </div>
+                    <div class="qr-id">${escapeHTML(account.id)}</div>
+                    <p>${escapeHTML(account.name)}</p>
+                    <button id="download-qr" class="secondary-btn" type="button">Download QR Code</button>
+                    <p id="qr-message" class="form-message"></p>
+                </section>
+                <section class="panel">
+                    <div class="panel-header"><h3>How to Use Your QR Code</h3></div>
+                    <div class="list-stack">
+                        <div class="list-item"><div><strong>1. Open your QR Code</strong><p>Go to My QR Code in the sidebar.</p></div></div>
+                        <div class="list-item"><div><strong>2. Show it to your supervisor</strong><p>Keep your screen bright so the camera can read the code.</p></div></div>
+                        <div class="list-item"><div><strong>3. Confirm your attendance</strong><p>Your supervisor scans the code to record time in or time out.</p></div></div>
+                    </div>
+                    <div class="notice" style="margin-top:18px">
+                        <strong>Important:</strong> Your QR code identifies your account. Attendance is saved in the browser used by this demo.
+                    </div>
+                </section>
+            </div>`;
+    }
+
+    function renderScanner(account, role) {
+        if (role !== "supervisor") {
+            return emptyState("Access restricted", "Only supervisor accounts can use the QR attendance scanner.");
+        }
+
+        return `
+            <div class="page-heading">
+                <div>
+                    <h2>QR Attendance Scanner</h2>
+                    <p class="muted">Use your camera to scan a registered student's QR code.</p>
+                </div>
+            </div>
+            <div class="notice">
+                <strong>How it works:</strong> First scan records Time In. The second scan records Time Out.
+                Rendered hours are calculated after Time Out.
+            </div>
+            <div class="qr-layout">
+                <section class="panel">
+                    <div class="panel-header">
+                        <div>
+                            <h3>Camera Scanner</h3>
+                            <p>Allow camera access when your browser asks.</p>
+                        </div>
+                    </div>
+                    <div id="qr-reader" class="scanner-box"></div>
+                    <div class="scanner-actions">
+                        <button id="start-scanner" class="primary-btn" type="button">Start Camera</button>
+                        <button id="stop-scanner" class="secondary-btn" type="button" disabled>Stop Camera</button>
+                    </div>
+                    <div id="scan-status" class="scanner-status">Press Start Camera to begin scanning.</div>
+                </section>
+                <section class="panel">
+                    <div class="panel-header"><h3>Scan Result</h3></div>
+                    <div id="scan-result">
+                        ${emptyState("Waiting for scan", "The student's information will appear here after a successful scan.", "▦")}
+                    </div>
+                    <div class="notice" style="margin-top:18px">
+                        The camera usually works on HTTPS or localhost. If permission is denied, check your browser's camera settings.
+                    </div>
+                </section>
+            </div>`;
+    }
+
+    function renderDocuments() {
+        return panel(
+            "Documents",
+            `<div class="notice">This section is ready for internship documents such as forms, reports, and certificates.</div>
+             ${emptyState("No documents added", "Document upload and storage have not been connected in this local demo.")}`
         );
-      });
+    }
 
-    const render = pageRenderers[page]
-      || pageRenderers.dashboard;
+    function renderEvaluation(account, role) {
+        if (role === "student") {
+            return panel(
+                "My Evaluation",
+                `<div class="info-grid">
+                    <div class="info-card"><span>Student</span><strong>${escapeHTML(account.name)}</strong></div>
+                    <div class="info-card"><span>Evaluation Status</span><strong>${statusBadge("Pending")}</strong></div>
+                </div>
+                <p class="muted">Your evaluation results will appear here when your supervisor records them.</p>`
+            );
+        }
 
-    $("content").innerHTML = render();
+        const students = loadAccounts().filter(item => item.role === "student");
+        const rows = students.map(student => [
+            escapeHTML(student.name),
+            escapeHTML(student.id),
+            statusBadge("Pending")
+        ]);
 
-    bindPageActions();
-  }
+        return panel(
+            role === "supervisor" ? "Intern Evaluations" : "Evaluation Overview",
+            table(["Student", "Student ID", "Evaluation Status"], rows)
+        );
+    }
 
-  // =========================================
-  // REUSABLE DISPLAY COMPONENTS
-  // =========================================
+    function renderNotifications(account, role) {
+        const notifications = readJSON(KEYS.notifications, []);
+        const visible = Array.isArray(notifications)
+            ? notifications.filter(item => !item.role || item.role === role)
+            : [];
 
-  function card(label, value, note, icon) {
-    return `
-      <article class="stat-card">
-        <div class="stat-top">
-          <span>${label}</span>
-          <span class="stat-icon">${icon}</span>
-        </div>
+        return panel(
+            "Notifications",
+            visible.length
+                ? `<div class="list-stack">${visible.map(item => `
+                    <div class="list-item">
+                        <div>
+                            <strong>${escapeHTML(item.title || "Notification")}</strong>
+                            <p>${escapeHTML(item.message || "")}</p>
+                        </div>
+                        <span class="muted">${escapeHTML(item.date || "")}</span>
+                    </div>`).join("")}</div>`
+                : emptyState("No notifications yet", "Updates and reminders will appear here.", "♧")
+        );
+    }
 
-        <div class="stat-value">${value}</div>
-        <div class="stat-note">${note}</div>
-      </article>
-    `;
-  }
+    function renderInterns() {
+        const students = loadAccounts().filter(account => account.role === "student");
 
-  function panel(title, description, body) {
-    return `
-      <section class="panel">
-        <div class="panel-heading">
-          <div>
-            <h2>${title}</h2>
-            <p>${description}</p>
-          </div>
-        </div>
+        const rows = students.map(student => {
+            const records = getAttendance().filter(item => String(item.studentId) === String(student.id));
 
-        ${body}
-      </section>
-    `;
-  }
+            return [
+                escapeHTML(student.name),
+                escapeHTML(student.id),
+                `${totalHours(records).toFixed(2)} hrs`,
+                statusBadge(records.length ? "In Progress" : "Pending")
+            ];
+        });
 
-  function empty(title, description) {
-    return `
-      <div class="empty-state">
-        <div class="empty-icon">✦</div>
-        <strong>${title}</strong>
-        <p>${description}</p>
-      </div>
-    `;
-  }
+        return panel(
+            "Registered Student Interns",
+            table(["Student Name", "Student ID", "Rendered Hours", "Status"], rows),
+            "Student accounts registered in this demo."
+        );
+    }
 
-  // =========================================
-  // DASHBOARDS AND SYSTEM PAGES
-  // =========================================
+    function renderStudents() {
+        const students = loadAccounts().filter(account => account.role === "student");
 
-  const pageRenderers = {
+        const rows = students.map(student => [
+            escapeHTML(student.name),
+            escapeHTML(student.id),
+            statusBadge("Active")
+        ]);
 
-    // =======================================
-    // DASHBOARD - DIFFERENT FOR EACH ROLE
-    // =======================================
+        return panel("Student Directory", table(["Full Name", "Student ID", "Status"], rows));
+    }
 
-    dashboard() {
+    function renderCompanies() {
+        return panel(
+            "Company Directory",
+            emptyState("No company records", "Company registration and management have not been connected yet.")
+        );
+    }
 
-      // STUDENT DASHBOARD
-      if (currentAccount.role === "student") {
+    function renderProgress() {
+        const students = loadAccounts().filter(account => account.role === "student");
+
+        const rows = students.map(student => {
+            const records = getAttendance().filter(item => String(item.studentId) === String(student.id));
+            const hours = totalHours(records);
+
+            return [
+                escapeHTML(student.name),
+                escapeHTML(student.id),
+                `${hours.toFixed(2)} hrs`,
+                statusBadge(hours > 0 ? "In Progress" : "Pending")
+            ];
+        });
+
+        return panel("Internship Progress", table(["Student", "ID Number", "Rendered Hours", "Progress"], rows));
+    }
+
+    function renderReports() {
+        const records = getAttendance();
+        const students = loadAccounts().filter(account => account.role === "student");
+
+        const rows = students.map(student => {
+            const ownRecords = records.filter(item => String(item.studentId) === String(student.id));
+
+            return [
+                escapeHTML(student.name),
+                escapeHTML(student.id),
+                ownRecords.length,
+                `${totalHours(ownRecords).toFixed(2)} hrs`,
+                ownRecords.filter(item => item.timeOut).length
+            ];
+        });
+
         return `
-          <section class="welcome-banner">
-            <div>
-              <div class="banner-kicker">
-                STUDENT WORKSPACE
-              </div>
-
-              <h2>
-                Welcome back,
-                ${escapeHTML(currentAccount.name.split(" ")[0])}!
-              </h2>
-
-              <p>
-                Keep your internship requirements, attendance,
-                and progress on track.
-              </p>
+            <div class="card-grid">
+                ${statCard("Total Students", students.length, "♙", "Registered student accounts")}
+                ${statCard("Attendance Records", records.length, "◷", "All recorded attendance")}
+                ${statCard("Rendered Hours", totalHours(records).toFixed(2), "⌛", "Completed hours")}
+                ${statCard("Completed Sessions", records.filter(item => item.timeOut).length, "✓", "Time out recorded")}
             </div>
+            ${panel("Student Attendance Summary", table(["Student", "ID Number", "Records", "Hours", "Completed Sessions"], rows))}`;
+    }
 
-            <div class="banner-mark">IT</div>
-          </section>
+    function setScanStatus(message, type = "") {
+        const status = $("#scan-status");
+        if (!status) return;
 
-          <div class="section-heading">
-            <div>
-              <h2>Your overview</h2>
-              <p>A quick look at your internship activities.</p>
+        status.textContent = message;
+        status.className = "scanner-status" + (type ? " " + type : "");
+    }
+
+    function renderScanResult(record, message) {
+        const container = $("#scan-result");
+        if (!container) return;
+
+        container.innerHTML = `
+            <div class="info-grid">
+                <div class="info-card"><span>Student Name</span><strong>${escapeHTML(record.studentName)}</strong></div>
+                <div class="info-card"><span>Student ID</span><strong>${escapeHTML(record.studentId)}</strong></div>
+                <div class="info-card"><span>Date</span><strong>${escapeHTML(formatDate(record.date))}</strong></div>
+                <div class="info-card"><span>Time In</span><strong>${escapeHTML(record.timeIn || "—")}</strong></div>
+                <div class="info-card"><span>Time Out</span><strong>${escapeHTML(record.timeOut || "—")}</strong></div>
+                <div class="info-card"><span>Rendered Hours</span><strong>${Number(record.hours || 0).toFixed(2)} hrs</strong></div>
             </div>
-
-            <span class="status-pill">● Active account</span>
-          </div>
-
-          <div class="dashboard-grid">
-            ${card(
-              "Requirements",
-              "0",
-              "No submitted items recorded",
-              "☷"
-            )}
-
-            ${card(
-              "Rendered hours",
-              "0",
-              "Hours appear when records are added",
-              "◷"
-            )}
-
-            ${card(
-              "Attendance records",
-              "0",
-              "No attendance entries yet",
-              "▦"
-            )}
-          </div>
-
-          ${panel(
-            "Getting started",
-            "Your student workspace",
-            `
-              <div class="quick-grid">
-                <div class="quick-item">
-                  <span>01</span>
-                  <div>
-                    <strong>Review your profile</strong>
-                    <p>Check your student details.</p>
-                  </div>
-                </div>
-
-                <div class="quick-item">
-                  <span>02</span>
-                  <div>
-                    <strong>Check requirements</strong>
-                    <p>Track documents you need to submit.</p>
-                  </div>
-                </div>
-
-                <div class="quick-item">
-                  <span>03</span>
-                  <div>
-                    <strong>Monitor your hours</strong>
-                    <p>Review attendance and rendered hours.</p>
-                  </div>
-                </div>
-              </div>
-            `
-          )}
-        `;
-      }
-
-      // SUPERVISOR DASHBOARD
-      if (currentAccount.role === "supervisor") {
-        return `
-          <section class="welcome-banner">
-            <div>
-              <div class="banner-kicker">
-                SUPERVISOR WORKSPACE
-              </div>
-
-              <h2>
-                Welcome,
-                ${escapeHTML(currentAccount.name.split(" ")[0])}.
-              </h2>
-
-              <p>
-                Review assigned interns, verify attendance,
-                and provide constructive feedback.
-              </p>
-            </div>
-
-            <div class="banner-mark">SV</div>
-          </section>
-
-          <div class="section-heading">
-            <div>
-              <h2>Supervision overview</h2>
-              <p>Summary of activities in your supervisor workspace.</p>
-            </div>
-
-            <span class="status-pill">● Supervisor access</span>
-          </div>
-
-          <div class="dashboard-grid">
-            ${card(
-              "Assigned interns",
-              "0",
-              "No intern records linked yet",
-              "♙"
-            )}
-
-            ${card(
-              "Attendance reviews",
-              "0",
-              "No records awaiting review",
-              "◷"
-            )}
-
-            ${card(
-              "Evaluations",
-              "0",
-              "No evaluations submitted",
-              "☆"
-            )}
-          </div>
-
-          ${panel(
-            "Supervisor responsibilities",
-            "Tools for supporting your assigned interns",
-            `
-              <div class="quick-grid">
-                <div class="quick-item">
-                  <span>01</span>
-                  <div>
-                    <strong>Monitor assigned interns</strong>
-                    <p>Review internship status and progress.</p>
-                  </div>
-                </div>
-
-                <div class="quick-item">
-                  <span>02</span>
-                  <div>
-                    <strong>Verify attendance</strong>
-                    <p>Check recorded hours before approval.</p>
-                  </div>
-                </div>
-
-                <div class="quick-item">
-                  <span>03</span>
-                  <div>
-                    <strong>Submit feedback</strong>
-                    <p>Provide evaluations and guidance.</p>
-                  </div>
-                </div>
-              </div>
-            `
-          )}
-        `;
-      }
-
-      // COORDINATOR DASHBOARD
-      return `
-        <section class="welcome-banner">
-          <div>
-            <div class="banner-kicker">
-              COORDINATOR WORKSPACE
-            </div>
-
-            <h2>
-              Welcome,
-              ${escapeHTML(currentAccount.name.split(" ")[0])}.
-            </h2>
-
-            <p>
-              Coordinate student records, internship placements,
-              requirements, and progress.
-            </p>
-          </div>
-
-          <div class="banner-mark">CO</div>
-        </section>
-
-        <div class="section-heading">
-          <div>
-            <h2>Program overview</h2>
-            <p>
-              High-level summary of internship management records.
-            </p>
-          </div>
-
-          <span class="status-pill">● Coordinator access</span>
-        </div>
-
-        <div class="dashboard-grid">
-          ${card(
-            "Student records",
-            "0",
-            "No student records added yet",
-            "♙"
-          )}
-
-          ${card(
-            "Company records",
-            "0",
-            "No company records added yet",
-            "⌂"
-          )}
-
-          ${card(
-            "Reports",
-            "0",
-            "Reports become available as data is recorded",
-            "▥"
-          )}
-        </div>
-
-        ${panel(
-          "Coordination tools",
-          "Monitor the key parts of internship management",
-          `
-            <div class="quick-grid">
-              <div class="quick-item">
-                <span>01</span>
-                <div>
-                  <strong>Manage records</strong>
-                  <p>Keep student and company information organized.</p>
-                </div>
-              </div>
-
-              <div class="quick-item">
-                <span>02</span>
-                <div>
-                  <strong>Monitor progress</strong>
-                  <p>Review attendance, hours, and requirements.</p>
-                </div>
-              </div>
-
-              <div class="quick-item">
-                <span>03</span>
-                <div>
-                  <strong>Prepare reports</strong>
-                  <p>Review report categories for program monitoring.</p>
-                </div>
-              </div>
-            </div>
-          `
-        )}
-      `;
-    },
-
-    // =======================================
-    // STUDENT PROFILE
-    // =======================================
-
-    profile: () => panel(
-      "Student profile",
-      "Your account and internship identity",
-      `
-        <div class="profile-hero">
-          <div class="profile-avatar">
-            ${initials(currentAccount.name)}
-          </div>
-
-          <div>
-            <h3>${escapeHTML(currentAccount.name)}</h3>
-            <p>${escapeHTML(roleNames[currentAccount.role])}</p>
-          </div>
-        </div>
-
-        <div class="detail-grid">
-          <div class="detail-item">
-            <span>Full name</span>
-            <strong>${escapeHTML(currentAccount.name)}</strong>
-          </div>
-
-          <div class="detail-item">
-            <span>ID number</span>
-            <strong>${escapeHTML(currentAccount.id)}</strong>
-          </div>
-
-          <div class="detail-item">
-            <span>Account role</span>
-            <strong>${escapeHTML(roleNames[currentAccount.role])}</strong>
-          </div>
-
-          <div class="detail-item">
-            <span>Account status</span>
-            <strong><span class="status-pill">Active</span></strong>
-          </div>
-        </div>
-      `
-    ),
-
-    // =======================================
-    // COMPANY / PLACEMENT
-    // =======================================
-
-    company: () => panel(
-      "Company / placement",
-      "Placement details will be shown when they are assigned.",
-      empty(
-        "No placement assigned",
-        "Company name, supervisor, work location, and placement details have not been added yet."
-      )
-    ),
-
-    // =======================================
-    // REQUIREMENTS
-    // =======================================
-
-    requirements: () => panel(
-      currentAccount.role === "supervisor"
-        ? "Requirements review"
-        : "Internship requirements",
-
-      "Track each requirement and its current status.",
-
-      `
-        <div class="table-wrap">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Requirement</th>
-                <th>Status</th>
-                <th>Next step</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              <tr>
-                <td>Application Form</td>
-                <td><span class="tag pending">Pending</span></td>
-                <td>Awaiting record</td>
-              </tr>
-
-              <tr>
-                <td>Endorsement Letter</td>
-                <td><span class="tag pending">Pending</span></td>
-                <td>Awaiting record</td>
-              </tr>
-
-              <tr>
-                <td>Internship Documents</td>
-                <td><span class="tag pending">Pending</span></td>
-                <td>Awaiting record</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <p class="table-note">
-          These are sample placeholders. They do not represent
-          real submissions or approvals.
-        </p>
-      `
-    ),
-
-    // =======================================
-    // ATTENDANCE AND HOURS
-    // =======================================
-
-    attendance: () => panel(
-      currentAccount.role === "supervisor"
-        ? "Attendance review"
-        : "Attendance & rendered hours",
-
-      "Attendance data and verified hours will appear here when records are connected.",
-
-      empty(
-        "No attendance records yet",
-        "Time-in, time-out, QR attendance scans, verification, and rendered-hour totals need to be connected to a data source."
-      )
-    ),
-
-    // =======================================
-    // DOCUMENTS
-    // =======================================
-
-    documents: () => panel(
-      "Document management",
-      "Organize files related to internship requirements.",
-
-      empty(
-        "No documents uploaded",
-        "File upload and storage are not connected in this browser-only prototype."
-      )
-    ),
-
-    // =======================================
-    // EVALUATION
-    // =======================================
-
-    evaluation: () => panel(
-      currentAccount.role === "supervisor"
-        ? "Intern evaluations"
-        : "Evaluation & feedback",
-
-      "Performance feedback and evaluation records.",
-
-      empty(
-        "No evaluation records yet",
-        "Evaluations will appear when they have been created and saved."
-      )
-    ),
-
-    // =======================================
-    // NOTIFICATIONS
-    // =======================================
-
-    notifications: () => panel(
-      "Notifications",
-      "Important reminders and internship updates.",
-
-      empty(
-        "You are all caught up",
-        "No notifications have been recorded yet."
-      )
-    ),
-
-    // =======================================
-    // SUPERVISOR: ASSIGNED INTERNS
-    // =======================================
-
-    interns: () => panel(
-      "Assigned interns",
-      "Only interns assigned to your supervisor account should be displayed.",
-
-      empty(
-        "No assigned interns",
-        "Intern-to-supervisor assignment needs to be set up by the coordinator."
-      )
-    ),
-
-    // =======================================
-    // COORDINATOR: STUDENT RECORDS
-    // =======================================
-
-    students: () => panel(
-      "Student records",
-      "Centralized student internship records.",
-
-      empty(
-        "No student records yet",
-        "Student profiles will appear here after records are added through a connected management workflow."
-      )
-    ),
-
-    // =======================================
-    // COORDINATOR: COMPANY RECORDS
-    // =======================================
-
-    companies: () => panel(
-      "Company records",
-      "Host company and placement information.",
-
-      empty(
-        "No company records yet",
-        "Company name, address, contact person, and placement details have not been entered."
-      )
-    ),
-
-    // =======================================
-    // COORDINATOR: PROGRESS MONITORING
-    // =======================================
-
-    progress: () => panel(
-      "Internship progress monitoring",
-      "Monitor student requirements, attendance, rendered hours, and status.",
-
-      empty(
-        "No progress data yet",
-        "Progress summaries will be available when student records and internship activity data are connected."
-      )
-    ),
-
-    // =======================================
-    // COORDINATOR: REPORTS
-    // =======================================
-
-    reports: () => panel(
-      "Report center",
-      "Report categories planned for the internship program.",
-
-      `
-        <div class="report-grid">
-          <div class="report-tile">
-            <span>◷</span>
-            <strong>Attendance report</strong>
-            <p>Attendance and rendered-hour summaries.</p>
-          </div>
-
-          <div class="report-tile">
-            <span>☷</span>
-            <strong>Requirements report</strong>
-            <p>Submitted, pending, and approved requirements.</p>
-          </div>
-
-          <div class="report-tile">
-            <span>↗</span>
-            <strong>Progress report</strong>
-            <p>Internship progress and completion status.</p>
-          </div>
-        </div>
-
-        <p class="table-note">
-          Report generation requires saved internship records;
-          this prototype currently displays report categories only.
-        </p>
-      `
-    )
-  };
-
-  // Reserved for future page-specific button actions.
-  function bindPageActions() {}
-
-  // =========================================
-  // LOGIN FORM
-  // =========================================
-
-  $("login-form").addEventListener("submit", event => {
-    event.preventDefault();
-
-    const id = $("login-id").value.trim();
-    const password = $("login-password").value;
-
-    const found = accounts.find(item =>
-      item.id === id &&
-      item.password === password
-    );
-
-    if (!found) {
-      message(
-        "login-error",
-        "ID number or password is incorrect. Please try again."
-      );
-      return;
+            <div class="notice" style="margin-top:16px">${escapeHTML(message)}</div>`;
     }
 
-    message("login-error", "");
-    $("login-form").reset();
+    function handleStudentScan(decodedText, supervisor) {
+        if (scannerBusy) return;
 
-    signIn(found);
-  });
+        scannerBusy = true;
 
-  // =========================================
-  // CREATE ACCOUNT FORM
-  // =========================================
+        try {
+            let payload;
 
-  $("register-form").addEventListener("submit", event => {
-    event.preventDefault();
+            try {
+                payload = JSON.parse(decodedText);
+            } catch (error) {
+                setScanStatus("Invalid QR code. Please scan an InternTrack student QR code.", "error");
+                return;
+            }
 
-    const name = $("register-name").value.trim();
-    const id = $("register-id").value.trim();
-    const role = $("register-role").value;
-    const password = $("register-password").value;
-    const confirm = $("register-confirm").value;
+            if (
+                !payload ||
+                payload.app !== "InternTrack" ||
+                payload.type !== "student" ||
+                !payload.id
+            ) {
+                setScanStatus("This QR code is not a valid InternTrack student code.", "error");
+                return;
+            }
 
-    message("register-error", "");
-    message("register-success", "");
+            const student = loadAccounts().find(item =>
+                String(item.id) === String(payload.id) && item.role === "student"
+            );
 
-    if (name.length < 2) {
-      return message(
-        "register-error",
-        "Please enter your full name."
-      );
+            if (!student) {
+                setScanStatus("Student account not found. Ask the student to verify their registered account.", "error");
+                return;
+            }
+
+            const records = getAttendance();
+            const today = todayString();
+
+            let record = records.find(item =>
+                String(item.studentId) === String(student.id) && item.date === today
+            );
+
+            let message;
+
+            if (!record) {
+                record = {
+                    studentId: String(student.id),
+                    studentName: student.name,
+                    date: today,
+                    timeIn: timeString(),
+                    timeOut: "",
+                    hours: 0,
+                    supervisorId: String(supervisor.id),
+                    supervisorName: supervisor.name
+                };
+
+                records.push(record);
+                message = "Time In recorded successfully.";
+            } else if (record.timeIn && !record.timeOut) {
+                record.timeOut = timeString();
+                record.hours = hoursBetween(record.timeIn, record.timeOut);
+                record.supervisorId = String(supervisor.id);
+                record.supervisorName = supervisor.name;
+                message = `Time Out recorded. Rendered hours: ${record.hours.toFixed(2)}.`;
+            } else {
+                setScanStatus("Attendance for this student is already complete today.", "error");
+                renderScanResult(record, "This student already has a Time In and Time Out record for today.");
+                return;
+            }
+
+            saveAttendance(records);
+            setScanStatus(message, "success");
+            renderScanResult(record, message);
+        } finally {
+            window.setTimeout(() => {
+                scannerBusy = false;
+            }, 1200);
+        }
     }
 
-    if (id.length < 5) {
-      return message(
-        "register-error",
-        "ID number must contain at least 5 characters."
-      );
+    async function startScanner(account) {
+        if (getRole(account) !== "supervisor") {
+            setScanStatus("Only supervisors can start the attendance scanner.", "error");
+            return;
+        }
+
+        if (scannerStarting || activeScanner) return;
+
+        if (!window.Html5Qrcode) {
+            setScanStatus("The QR scanner library did not load. Check your internet connection and reload the page.", "error");
+            return;
+        }
+
+        scannerStarting = true;
+
+        scannerStartButton = $("#start-scanner");
+        scannerStopButton = $("#stop-scanner");
+
+        if (scannerStartButton) scannerStartButton.disabled = true;
+
+        try {
+            activeScanner = new Html5Qrcode("qr-reader");
+
+            setScanStatus("Starting camera. Please allow camera permission.");
+
+            await activeScanner.start(
+                { facingMode: "environment" },
+                {
+                    fps: 10,
+                    qrbox: { width: 240, height: 240 },
+                    aspectRatio: 1
+                },
+                decodedText => handleStudentScan(decodedText, account),
+                () => {}
+            );
+
+            if (scannerStopButton) scannerStopButton.disabled = false;
+            setScanStatus("Camera is active. Point it at a student's QR code.", "success");
+        } catch (error) {
+            console.error("Camera start failed:", error);
+
+            if (activeScanner) {
+                try {
+                    await activeScanner.clear();
+                } catch (clearError) {
+                    console.warn(clearError);
+                }
+            }
+
+            activeScanner = null;
+            setScanStatus("Unable to start camera. Allow camera access and use HTTPS or localhost.", "error");
+        } finally {
+            scannerStarting = false;
+            if (scannerStartButton) scannerStartButton.disabled = Boolean(activeScanner);
+        }
     }
 
-    if (!["student", "supervisor", "coordinator"].includes(role)) {
-      return message(
-        "register-error",
-        "Please select a valid account role."
-      );
+    async function stopScanner() {
+        if (!activeScanner) {
+            if (scannerStopButton) scannerStopButton.disabled = true;
+            if (scannerStartButton) scannerStartButton.disabled = false;
+            return;
+        }
+
+        const scanner = activeScanner;
+        activeScanner = null;
+
+        try {
+            if (scanner.isScanning) {
+                await scanner.stop();
+            }
+        } catch (error) {
+            console.warn("Unable to stop scanner cleanly:", error);
+        }
+
+        try {
+            await scanner.clear();
+        } catch (error) {
+            console.warn("Unable to clear scanner:", error);
+        }
+
+        if (scannerStopButton) scannerStopButton.disabled = true;
+        if (scannerStartButton) scannerStartButton.disabled = false;
+
+        if ($("#scan-status")) {
+            setScanStatus("Camera stopped. Press Start Camera to scan again.");
+        }
     }
 
-    if (password.length < 6) {
-      return message(
-        "register-error",
-        "Password must be at least 6 characters."
-      );
+    function generateStudentQR(account) {
+        const container = $("#student-qr");
+        if (!container) return;
+
+        container.innerHTML = "";
+
+        if (!window.QRCode) {
+            container.innerHTML = '<span class="muted">QR library unavailable. Check your internet connection.</span>';
+            return;
+        }
+
+        const payload = JSON.stringify({
+            app: "InternTrack",
+            type: "student",
+            id: String(account.id)
+        });
+
+        new QRCode(container, {
+            text: payload,
+            width: 220,
+            height: 220,
+            colorDark: "#171717",
+            colorLight: "#ffffff",
+            correctLevel: QRCode.CorrectLevel.H
+        });
     }
 
-    if (password !== confirm) {
-      return message(
-        "register-error",
-        "Passwords do not match."
-      );
+    function bindPageActions(pageId, account, role) {
+        if (pageId === "my-qr" && role === "student") {
+            generateStudentQR(account);
+
+            const downloadButton = $("#download-qr");
+
+            if (downloadButton) {
+                downloadButton.addEventListener("click", () => {
+                    const container = $("#student-qr");
+                    const image = container && container.querySelector("img");
+                    const canvas = container && container.querySelector("canvas");
+
+                    let url = "";
+
+                    if (image && image.src) {
+                        url = image.src;
+                    } else if (canvas) {
+                        url = canvas.toDataURL("image/png");
+                    }
+
+                    if (!url) {
+                        setMessage("#qr-message", "QR code is not ready yet.", "error");
+                        return;
+                    }
+
+                    const link = document.createElement("a");
+                    link.href = url;
+                    link.download = `InternTrack-QR-${account.id}.png`;
+                    document.body.appendChild(link);
+                    link.click();
+                    link.remove();
+
+                    setMessage("#qr-message", "QR code download started.", "success");
+                });
+            }
+        }
+
+        if (pageId === "scan-attendance" && role === "supervisor") {
+            const startButton = $("#start-scanner");
+            const stopButton = $("#stop-scanner");
+
+            scannerStartButton = startButton;
+            scannerStopButton = stopButton;
+
+            if (startButton) {
+                startButton.addEventListener("click", () => startScanner(account));
+            }
+
+            if (stopButton) {
+                stopButton.addEventListener("click", stopScanner);
+            }
+        }
+
+        if (pageId === "requirements") {
+            const studentForm = $("#requirement-form");
+
+            if (studentForm && role === "student") {
+                studentForm.addEventListener("submit", event => {
+                    event.preventDefault();
+
+                    const name = $("#requirement-name").value.trim();
+                    if (!name) return;
+
+                    const records = readJSON(KEYS.requirements, []);
+                    records.push({
+                        studentId: String(account.id),
+                        studentName: account.name,
+                        name,
+                        status: "Pending",
+                        date: todayString()
+                    });
+
+                    saveJSON(KEYS.requirements, records);
+                    showPage("requirements");
+                });
+            }
+
+            const reviewForm = $("#requirement-review-form");
+
+            if (reviewForm && (role === "supervisor" || role === "coordinator")) {
+                reviewForm.addEventListener("submit", event => {
+                    event.preventDefault();
+
+                    const studentId = $("#review-student-id").value.trim();
+                    const name = $("#review-requirement-name").value.trim();
+                    const status = $("#review-status").value;
+
+                    const student = loadAccounts().find(item =>
+                        String(item.id) === studentId && item.role === "student"
+                    );
+
+                    if (!student) {
+                        alert("Student ID not found. Please enter a registered student ID.");
+                        return;
+                    }
+
+                    const records = readJSON(KEYS.requirements, []);
+                    const existing = records.find(item =>
+                        String(item.studentId) === studentId && item.name.toLowerCase() === name.toLowerCase()
+                    );
+
+                    if (existing) {
+                        existing.status = status;
+                        existing.date = todayString();
+                    } else {
+                        records.push({
+                            studentId,
+                            studentName: student.name,
+                            name,
+                            status,
+                            date: todayString()
+                        });
+                    }
+
+                    saveJSON(KEYS.requirements, records);
+                    showPage("requirements");
+                });
+            }
+        }
     }
 
-    const exists = accounts.some(item =>
-      item.id.toLowerCase() === id.toLowerCase()
-    );
+    function initLogin() {
+        $("#login-form").addEventListener("submit", event => {
+            event.preventDefault();
+            clearMessage("#login-message");
 
-    if (exists) {
-      return message(
-        "register-error",
-        "That ID number is already registered."
-      );
+            const id = $("#login-id").value.trim();
+            const password = $("#login-password").value;
+
+            const account = loadAccounts().find(item =>
+                String(item.id) === id && item.password === password
+            );
+
+            if (!account) {
+                setMessage("#login-message", "Incorrect ID number or password.");
+                return;
+            }
+
+            if (!menus[account.role]) {
+                setMessage("#login-message", "This account has an invalid role.");
+                return;
+            }
+
+            signIn(account);
+        });
     }
 
-    // Save the new account and its selected role.
-    accounts.push({
-      name,
-      id,
-      role,
-      password,
-      createdAt: new Date().toISOString()
-    });
+    function initRegister() {
+        $("#register-form").addEventListener("submit", event => {
+            event.preventDefault();
+            clearMessage("#register-message");
 
-    saveAccounts();
+            const name = $("#register-name").value.trim();
+            const id = $("#register-id").value.trim();
+            const role = $("#register-role").value;
+            const password = $("#register-password").value;
+            const confirm = $("#register-confirm").value;
 
-    $("register-form").reset();
+            if (name.length < 2) {
+                setMessage("#register-message", "Please enter your complete name.");
+                return;
+            }
 
-    message(
-      "register-success",
-      "Account created. You can now sign in with your ID and password."
-    );
+            if (id.length < 5) {
+                setMessage("#register-message", "ID number must contain at least 5 characters.");
+                return;
+            }
 
-    setTimeout(() => {
-      goToAuth("login-page");
-    }, 1200);
-  });
+            if (password.length < 6) {
+                setMessage("#register-message", "Password must contain at least 6 characters.");
+                return;
+            }
 
-  // =========================================
-  // FORGOT PASSWORD FORM
-  // =========================================
+            if (password !== confirm) {
+                setMessage("#register-message", "Passwords do not match.");
+                return;
+            }
 
-  $("forgot-form").addEventListener("submit", event => {
-    event.preventDefault();
+            if (!menus[role]) {
+                setMessage("#register-message", "Please choose a valid account role.");
+                return;
+            }
 
-    const id = $("forgot-id").value.trim();
-    const role = $("forgot-role").value;
-    const password = $("forgot-password").value;
-    const confirm = $("forgot-confirm").value;
+            const accounts = loadAccounts();
 
-    message("forgot-error", "");
-    message("forgot-success", "");
+            if (accounts.some(item => String(item.id) === id)) {
+                setMessage("#register-message", "An account with this ID number already exists.");
+                return;
+            }
 
-    if (password.length < 6) {
-      return message(
-        "forgot-error",
-        "New password must be at least 6 characters."
-      );
+            const account = { name, id, role, password };
+
+            accounts.push(account);
+            saveAccounts(accounts);
+
+            $("#register-form").reset();
+            setMessage("#register-message", "Account created successfully. You can now sign in.", "success");
+        });
     }
 
-    if (password !== confirm) {
-      return message(
-        "forgot-error",
-        "Passwords do not match."
-      );
+    function initForgotPassword() {
+        $("#forgot-form").addEventListener("submit", event => {
+            event.preventDefault();
+            clearMessage("#forgot-message");
+
+            const id = $("#forgot-id").value.trim();
+            const password = $("#forgot-password").value;
+            const confirm = $("#forgot-confirm").value;
+
+            if (password.length < 6) {
+                setMessage("#forgot-message", "New password must contain at least 6 characters.");
+                return;
+            }
+
+            if (password !== confirm) {
+                setMessage("#forgot-message", "Passwords do not match.");
+                return;
+            }
+
+            const accounts = loadAccounts();
+            const account = accounts.find(item => String(item.id) === id);
+
+            if (!account) {
+                setMessage("#forgot-message", "No account was found with this ID number.");
+                return;
+            }
+
+            account.password = password;
+            saveAccounts(accounts);
+
+            $("#forgot-form").reset();
+            setMessage("#forgot-message", "Password updated. You can now sign in.", "success");
+        });
     }
 
-    const found = accounts.find(item =>
-      item.id.toLowerCase() === id.toLowerCase() &&
-      item.role === role
-    );
+    function initNavigation() {
+        $("#show-register").addEventListener("click", () => {
+            clearMessage("#register-message");
+            showOnly("register-page");
+        });
 
-    if (!found) {
-      return message(
-        "forgot-error",
-        "No account matches that ID number and role."
-      );
+        $("#show-login").addEventListener("click", () => {
+            clearMessage("#login-message");
+            showOnly("login-page");
+        });
+
+        $("#show-forgot").addEventListener("click", () => {
+            clearMessage("#forgot-message");
+            showOnly("forgot-page");
+        });
+
+        $("#forgot-back").addEventListener("click", () => {
+            clearMessage("#login-message");
+            showOnly("login-page");
+        });
+
+        $("#logout-btn").addEventListener("click", signOut);
+
+        $("#theme-toggle").addEventListener("click", () => {
+            const nextTheme = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+            localStorage.setItem(KEYS.theme, nextTheme);
+            applyTheme();
+        });
     }
 
-    found.password = password;
-    saveAccounts();
+    function init() {
+        applyTheme();
+        initLogin();
+        initRegister();
+        initForgotPassword();
+        initNavigation();
 
-    $("forgot-form").reset();
+        const isLoggedIn = localStorage.getItem(KEYS.session) === "true";
+        const account = getCurrentAccount();
 
-    message(
-      "forgot-success",
-      "Password reset for this browser demo. You can now sign in."
-    );
+        if (isLoggedIn && account && menus[account.role]) {
+            signIn(account);
+        } else {
+            localStorage.removeItem(KEYS.session);
+            localStorage.removeItem(KEYS.current);
+            showOnly("login-page");
+        }
+    }
 
-    setTimeout(() => {
-      goToAuth("login-page");
-    }, 1400);
-  });
-
-  // =========================================
-  // PAGE NAVIGATION BUTTONS
-  // =========================================
-
-  $("show-register").addEventListener("click", () => {
-    goToAuth("register-page");
-  });
-
-  $("show-login").addEventListener("click", () => {
-    goToAuth("login-page");
-  });
-
-  $("show-forgot").addEventListener("click", () => {
-    goToAuth("forgot-page");
-  });
-
-  $("forgot-back").addEventListener("click", () => {
-    goToAuth("login-page");
-  });
-
-  // =========================================
-  // LOGOUT
-  // =========================================
-
-  $("logout-btn").addEventListener("click", () => {
-    currentAccount = null;
-
-    localStorage.removeItem(KEYS.session);
-    localStorage.removeItem(KEYS.current);
-
-    goToAuth("login-page");
-  });
-
-  // =========================================
-  // DARK MODE AND LIGHT MODE
-  // =========================================
-
-  function applyTheme(theme) {
-    document.documentElement.dataset.theme = theme;
-
-    localStorage.setItem(KEYS.theme, theme);
-
-    $("theme-icon").textContent =
-      theme === "dark" ? "☀" : "☾";
-
-    $("theme-label").textContent =
-      theme === "dark" ? "Light mode" : "Dark mode";
-  }
-
-  $("theme-toggle").addEventListener("click", () => {
-    const newTheme =
-      document.documentElement.dataset.theme === "dark"
-        ? "light"
-        : "dark";
-
-    applyTheme(newTheme);
-  });
-
-  // =========================================
-  // INITIAL PAGE AND SESSION
-  // =========================================
-
-  const savedTheme =
-    localStorage.getItem(KEYS.theme) || "light";
-
-  applyTheme(savedTheme);
-
-  const activeId = localStorage.getItem(KEYS.current);
-
-  const sessionAccount =
-    localStorage.getItem(KEYS.session) === "true" &&
-    accounts.find(item => item.id === activeId);
-
-  if (sessionAccount) {
-    signIn(sessionAccount);
-  } else {
-    goToAuth("login-page");
-  }
-
+    document.addEventListener("DOMContentLoaded", init);
 })();
