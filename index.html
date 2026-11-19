@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -30,7 +29,9 @@
             </form>
 
             <button type="button" id="show-forgot" class="text-btn">Forgot Password?</button>
-            <p class="auth-footer">Don't have an account?
+
+            <p class="auth-footer">
+                Don't have an account?
                 <button type="button" id="show-register" class="text-btn">Create Account</button>
             </p>
         </div>
@@ -68,7 +69,8 @@
                 <p id="register-message" class="form-message"></p>
             </form>
 
-            <p class="auth-footer">Already have an account?
+            <p class="auth-footer">
+                Already have an account?
                 <button type="button" id="show-login" class="text-btn">Sign In</button>
             </p>
         </div>
@@ -106,6 +108,8 @@
     <section id="system-page" class="system-layout hidden">
 
         <aside class="sidebar">
+
+            <!-- SIDEBAR BRAND -->
             <div class="sidebar-brand">
                 <img src="images/logs.png" alt="InternTrack Logo" class="sidebar-logo">
                 <div>
@@ -114,35 +118,95 @@
                 </div>
             </div>
 
-            <div class="sidebar-user">
-                <div id="sidebar-avatar" class="avatar">IT</div>
-                <div class="sidebar-user-info">
-                    <strong id="sidebar-name">User</strong>
-                    <span id="sidebar-role">Student</span>
+            <!-- STUDENT USER DROPDOWN -->
+            <div class="sidebar-user-wrap">
+
+                <button
+                    type="button"
+                    id="sidebar-user-toggle"
+                    class="sidebar-user"
+                    aria-expanded="false"
+                >
+                    <div id="sidebar-avatar" class="avatar">IT</div>
+
+                    <div class="sidebar-user-info">
+                        <strong id="sidebar-name">User</strong>
+                        <span id="sidebar-role">Student</span>
+                    </div>
+
+                    <span
+                        id="sidebar-user-arrow"
+                        class="sidebar-user-arrow hidden"
+                        aria-hidden="true"
+                    >▾</span>
+                </button>
+
+                <!-- QUICK MENU: STUDENT ONLY -->
+                <div id="student-quick-menu" class="student-quick-menu hidden">
+
+                    <button
+                        type="button"
+                        class="quick-icon"
+                        data-quick-page="notifications"
+                        title="Notifications"
+                    >
+                        <span>♧</span>
+                        <span class="quick-label">Notifications</span>
+                    </button>
+
+                    <button
+                        type="button"
+                        class="quick-icon"
+                        data-quick-page="profile"
+                        title="My Profile"
+                    >
+                        <span>♙</span>
+                        <span class="quick-label">My Profile</span>
+                    </button>
+
+                    <button
+                        type="button"
+                        id="student-theme-toggle"
+                        class="quick-icon"
+                        title="Dark Mode"
+                    >
+                        <span id="student-theme-icon">☀</span>
+                        <span id="student-theme-label" class="quick-label">Dark Mode</span>
+                    </button>
+
                 </div>
             </div>
 
+            <!-- MAIN NAVIGATION -->
             <p class="nav-label">MAIN MENU</p>
             <nav id="sidebar-nav"></nav>
 
+            <!-- SIDEBAR BOTTOM -->
             <div class="sidebar-bottom">
+
+                <!-- FOR COORDINATOR AND SUPERVISOR -->
                 <button type="button" id="theme-toggle" class="theme-toggle">
                     <span id="theme-icon">☀</span>
                     <span id="theme-label">Light Mode</span>
                 </button>
+
                 <button type="button" id="logout-btn" class="logout-btn">
                     <span>↪</span> Sign Out
                 </button>
+
             </div>
         </aside>
 
+        <!-- MAIN CONTENT -->
         <main class="main-area">
+
             <header class="topbar">
                 <div>
                     <p class="eyebrow">INTERNTRACK WORKSPACE</p>
                     <h1 id="page-title">Dashboard</h1>
                     <p id="page-subtitle" class="muted">Your internship overview.</p>
                 </div>
+
                 <div class="topbar-user">
                     <div id="header-avatar" class="avatar">IT</div>
                     <div>
@@ -153,13 +217,22 @@
             </header>
 
             <div id="content" class="content-area"></div>
-            <footer class="main-footer">InternTrack · Internship Tracking System</footer>
+
+            <footer class="main-footer">
+                InternTrack · Internship Tracking System
+            </footer>   
+
         </main>
     </section>
 
-    <!-- Libraries for QR generation and camera scanning -->
+    <!-- QR CODE GENERATION -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+    <!-- QR CODE SCANNER -->
     <script src="https://unpkg.com/html5-qrcode"></script>
+
+    <!-- APPLICATION SCRIPT -->
     <script src="js/app.js"></script>
+
 </body>
 </html>

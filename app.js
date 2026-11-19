@@ -10,8 +10,34 @@
         theme: "internTheme",
         attendance: "internAttendanceRecords",
         requirements: "internRequirements",
-        notifications: "internNotifications"
+        notifications: "internNotifications",
+        tasks: "internTasks",
+        submissions: "internTaskSubmissions",
+        feedback: "internFeedback"
     };
+
+    const REQUIRED_HOURS = 486;
+
+    const DEFAULT_TASKS = [
+        {
+            id: "weekly-report",
+            title: "Weekly Accomplishment Report",
+            description: "Summarize the work you completed this week and the skills you practiced.",
+            due: "End of each week"
+        },
+        {
+            id: "journal",
+            title: "Internship Journal",
+            description: "Write what you learned, the tasks you handled, and any challenges you faced.",
+            due: "Every Friday"
+        },
+        {
+            id: "final-report",
+            title: "Final Internship Report",
+            description: "Prepare your final report covering your hours, outputs, and internship experience.",
+            due: "Before internship ends"
+        }
+    ];
 
     const roleNames = {
         student: "Student",
@@ -22,14 +48,10 @@
     const menus = {
         student: [
             ["dashboard", "⌂", "Dashboard"],
-            ["profile", "♙", "My Profile"],
-            ["company", "▤", "Company / Placement"],
-            ["requirements", "☷", "Requirements"],
-            ["attendance", "◷", "Attendance & Hours"],
-            ["my-qr", "▦", "My QR Code"],
-            ["documents", "▧", "Documents"],
-            ["evaluation", "★", "Evaluation"],
-            ["notifications", "♧", "Notifications"]
+            ["tasks", "☰", "My Task"],
+            ["attendance", "◷", "Attendance"],
+            ["progress", "↗", "Progress Tracking"],
+            ["evaluation", "★", "Evaluation and Feedback"]
         ],
         supervisor: [
             ["dashboard", "⌂", "Dashboard"],
@@ -52,9 +74,15 @@
         ]
     };
 
+    const studentTools = [
+        ["profile", "♙", "My Profile"],
+        ["notifications", "♧", "Notifications"]
+    ];
+
     const subtitles = {
         dashboard: "Your internship overview.",
         profile: "View your registered student information.",
+        tasks: "View your assigned tasks and submit your work.",
         company: "View your internship placement information.",
         requirements: "Monitor internship requirements and review status.",
         attendance: "Review attendance and rendered internship hours.",
@@ -250,7 +278,7 @@
     function statusBadge(status) {
         let type = "neutral";
 
-        if (["Completed", "Present", "Approved", "Time Out Recorded"].includes(status)) {
+        if (["Completed", "Present", "Approved", "Time Out Recorded", "Submitted", "Active"].includes(status)) {
             type = "success";
         } else if (["Pending", "In Progress", "Timed In"].includes(status)) {
             type = "warning";
@@ -330,14 +358,73 @@
     function applyTheme() {
         const savedTheme = localStorage.getItem(KEYS.theme) || "light";
         const theme = savedTheme === "dark" ? "dark" : "light";
+        const nextLabel = theme === "dark" ? "Light Mode" : "Dark Mode";
+        const nextIcon = theme === "dark" ? "☾" : "☀";
 
         document.documentElement.dataset.theme = theme;
 
         const icon = $("#theme-icon");
         const label = $("#theme-label");
+        const studentIcon = $("#student-theme-icon");
+        const studentLabel = $("#student-theme-label");
+        const studentToggle = $("#student-theme-toggle");
 
-        if (icon) icon.textContent = theme === "dark" ? "☾" : "☀";
-        if (label) label.textContent = theme === "dark" ? "Light Mode" : "Dark Mode";
+        if (icon) icon.textContent = nextIcon;
+        if (label) label.textContent = nextLabel;
+        if (studentIcon) studentIcon.textContent = nextIcon;
+        if (studentLabel) studentLabel.textContent = nextLabel;
+        if (studentToggle) studentToggle.title = nextLabel;
+    }
+
+    function toggleTheme() {
+        const nextTheme = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+        localStorage.setItem(KEYS.theme, nextTheme);
+        applyTheme();
+    }
+
+    function setRoleChrome(role) {
+        const isStudent = role === "student";
+        document.body.classList.toggle("student-session", isStudent);
+
+        const arrow = $("#sidebar-user-arrow");
+        const menu = $("#student-quick-menu");
+        const topUser = $(".topbar-user");
+        const theme = $("#theme-toggle");
+        const logout = $("#logout-btn");
+        const toggle = $("#sidebar-user-toggle");
+
+        if (arrow) arrow.classList.toggle("hidden", !isStudent);
+        if (menu) menu.classList.add("hidden");
+        if (topUser) topUser.classList.toggle("hidden", isStudent);
+        if (theme) theme.classList.toggle("hidden", isStudent);
+
+        if (logout) {
+            logout.innerHTML = isStudent
+                ? "<span>↪</span> Log Out"
+                : "<span>↪</span> Sign Out";
+        }
+
+        if (toggle) toggle.setAttribute("aria-expanded", "false");
+    }
+
+    function toggleStudentMenu() {
+        if (!document.body.classList.contains("student-session")) return;
+
+        const menu = $("#student-quick-menu");
+        const toggle = $("#sidebar-user-toggle");
+        if (!menu || !toggle) return;
+
+        const open = menu.classList.contains("hidden");
+        menu.classList.toggle("hidden", !open);
+        toggle.setAttribute("aria-expanded", open ? "true" : "false");
+    }
+
+    function closeStudentMenu() {
+        const menu = $("#student-quick-menu");
+        const toggle = $("#sidebar-user-toggle");
+
+        if (menu) menu.classList.add("hidden");
+        if (toggle) toggle.setAttribute("aria-expanded", "false");
     }
 
     function updateAccountHeader(account) {
@@ -345,11 +432,31 @@
 
         $("#sidebar-name").textContent = account.name;
         $("#sidebar-role").textContent = roleNames[role] || roleNames.student;
+
+        if ($("#sidebar-id")) {
+            $("#sidebar-id").textContent = `ID ${account.id}`;
+        }
+
         $("#sidebar-avatar").textContent = initials(account.name);
 
-        $("#header-name").textContent = account.name;
-        $("#header-id").textContent = `ID: ${account.id}`;
-        $("#header-avatar").textContent = initials(account.name);
+        const headerAvatar = $("#header-avatar");
+        const headerName = $("#header-name");
+        const headerId = $("#header-id");
+
+        if (headerAvatar) headerAvatar.textContent = initials(account.name);
+        if (headerName) headerName.textContent = account.name;
+        if (headerId) headerId.textContent = `ID ${account.id}`;
+
+        const dateEl = $("#header-date");
+
+        if (dateEl) {
+            dateEl.textContent = new Date().toLocaleDateString("en-PH", {
+                weekday: "short",
+                month: "short",
+                day: "numeric",
+                year: "numeric"
+            });
+        }
     }
 
     function signIn(account) {
@@ -357,6 +464,7 @@
         localStorage.setItem(KEYS.session, "true");
 
         updateAccountHeader(account);
+        setRoleChrome(account.role);
         buildNavigation(account.role);
         applyTheme();
         showOnly("system-page");
@@ -368,6 +476,8 @@
         localStorage.removeItem(KEYS.session);
         localStorage.removeItem(KEYS.current);
         currentPage = "dashboard";
+        document.body.classList.remove("student-session");
+        setRoleChrome("supervisor");
         showOnly("login-page");
 
         if ($("#login-form")) $("#login-form").reset();
@@ -383,7 +493,12 @@
             return;
         }
 
-        const allowedPages = (menus[role] || []).map(item => item[0]);
+        const pageList = [
+            ...(menus[role] || []),
+            ...(role === "student" ? studentTools : [])
+        ];
+
+        const allowedPages = pageList.map(item => item[0]);
 
         if (!allowedPages.includes(pageId)) {
             pageId = "dashboard";
@@ -394,23 +509,43 @@
         }
 
         currentPage = pageId;
+        closeStudentMenu();
 
         document.querySelectorAll(".menu-btn").forEach(button => {
             button.classList.toggle("active", button.dataset.page === pageId);
         });
 
-        const menuItem = menus[role].find(item => item[0] === pageId);
+        const menuItem = [
+            ...(menus[role] || []),
+            ...(role === "student" ? studentTools : [])
+        ].find(item => item[0] === pageId);
 
         $("#page-title").textContent = menuItem ? menuItem[2] : "Dashboard";
-        $("#page-subtitle").textContent = subtitles[pageId] || "Manage internship information.";
 
-        $("#content").innerHTML = renderPage(pageId, account, role);
+        const studentSubtitles = {
+            attendance: "Show your QR code, check rendered hours, and review attendance records.",
+            progress: "Track your rendered hours and internship progress.",
+            evaluation: "Review your evaluation and feedback."
+        };
+
+        $("#page-subtitle").textContent =
+            (role === "student" && studentSubtitles[pageId]) ||
+            subtitles[pageId] ||
+            "Manage internship information.";
+
+        const content = $("#content");
+        content.classList.remove("content-refresh");
+        content.innerHTML = renderPage(pageId, account, role);
+        void content.offsetWidth;
+        content.classList.add("content-refresh");
+
         bindPageActions(pageId, account, role);
     }
 
     function renderPage(pageId, account, role) {
         const renderers = {
             dashboard: renderDashboard,
+            tasks: renderTasks,
             profile: renderProfile,
             company: renderCompany,
             requirements: renderRequirements,
@@ -428,7 +563,10 @@
         };
 
         const renderer = renderers[pageId];
-        return renderer ? renderer(account, role) : emptyState("Page not found", "Choose a page from the sidebar.");
+
+        return renderer
+            ? renderer(account, role)
+            : emptyState("Page not found", "Choose a page from the sidebar.");
     }
 
     function visibleAttendance(account, role) {
@@ -441,6 +579,7 @@
         return records;
     }
 
+    // UPDATED STUDENT DASHBOARD
     function renderDashboard(account, role) {
         const allAccounts = loadAccounts();
         const students = allAccounts.filter(item => item.role === "student");
@@ -452,14 +591,19 @@
         let intro = "";
 
         if (role === "student") {
+            const hours = totalHours(myRecords);
+            const tasks = getTasks();
+            const submitted = getSubmissions(account).length;
+
             cards = [
-                statCard("Attendance Records", myRecords.length, "◷", "Your recorded attendance"),
-                statCard("Rendered Hours", totalHours(myRecords).toFixed(2), "⌛", "Completed hours"),
-                statCard("Requirements", getRequirements(account).length, "☷", "Your requirement records"),
-                statCard("Account Role", "Student", "♙", "Student account")
+                statCard("Attendance", myRecords.filter(item => item.timeOut).length, "◷", "Completed attendance"),
+                statCard("Records", myRecords.length, "▧", "Attendance records"),
+                statCard("Rendered Hours", hours.toFixed(2), "⌛", `of ${REQUIRED_HOURS} required hours`),
+                statCard("Tasks", `${submitted}/${tasks.length}`, "☰", "Submitted tasks")
             ].join("");
 
-            intro = `Welcome, ${account.name}! Check your internship information, attendance, and personal QR code here.`;
+            intro = "Your attendance, records, rendered hours, tasks, and internship progress.";
+
         } else if (role === "supervisor") {
             cards = [
                 statCard("Registered Students", students.length, "♙", "Student accounts in this demo"),
@@ -468,7 +612,8 @@
                 statCard("Open Attendance", todayRecords.filter(item => !item.timeOut).length, "⌛", "Awaiting time out")
             ].join("");
 
-            intro = `Welcome, ${account.name}! Use the QR scanner to record your interns' time in and time out.`;
+            intro = "Use the QR scanner to record your interns' time in and time out.";
+
         } else {
             cards = [
                 statCard("Registered Students", students.length, "♙", "Student accounts"),
@@ -477,45 +622,203 @@
                 statCard("Rendered Hours", totalHours(attendance).toFixed(2), "⌛", "Completed attendance hours")
             ].join("");
 
-            intro = `Welcome, ${account.name}! Monitor registered accounts and internship attendance information.`;
+            intro = "Monitor registered accounts and internship attendance information.";
         }
 
-        const recentRecords = visibleAttendance(account, role).slice(-5).reverse();
-        const recentRows = recentRecords.map(record => [
-            escapeHTML(record.studentName),
-            escapeHTML(formatDate(record.date)),
-            escapeHTML(record.timeIn || "—"),
-            escapeHTML(record.timeOut || "—"),
-            `${Number(record.hours || 0).toFixed(2)} hrs`
-        ]);
+        // Recent Attendance is hidden only on the Student Dashboard.
+        let recentPanel = "";
+
+        if (role !== "student") {
+            const recentRecords = visibleAttendance(account, role).slice(-5).reverse();
+
+            const recentRows = recentRecords.map(record => [
+                escapeHTML(record.studentName),
+                escapeHTML(formatDate(record.date)),
+                escapeHTML(record.timeIn || "—"),
+                escapeHTML(record.timeOut || "—"),
+                `${Number(record.hours || 0).toFixed(2)} hrs`
+            ]);
+
+            recentPanel = panel(
+                "Recent Attendance Records",
+                table(["Student", "Date", "Time In", "Time Out", "Hours"], recentRows),
+                "Latest attendance records saved in this browser."
+            );
+        }
+
+        const studentExtras = role === "student"
+            ? `${internshipInfoPanel(account)}${internshipProgressPanel(account)}`
+            : "";
 
         return `
             <div class="welcome-banner">
-                <h2>Welcome to InternTrack</h2>
+                <p class="welcome-kicker">Dashboard</p>
+                <h2>Hello, ${escapeHTML(account.name)}</h2>
                 <p>${escapeHTML(intro)}</p>
             </div>
-            <div class="card-grid">${cards}</div>
-            ${panel(
-                role === "student" ? "My Recent Attendance" : "Recent Attendance Records",
-                table(["Student", "Date", "Time In", "Time Out", "Hours"], recentRows),
-                "Latest attendance records saved in this browser."
-            )}`;
+
+            <div class="card-grid">
+                ${cards}
+            </div>
+
+            ${recentPanel}
+            ${studentExtras}
+        `;
+    }
+
+    function getTasks() {
+        const tasks = readJSON(KEYS.tasks, []);
+
+        if (!Array.isArray(tasks) || !tasks.length) {
+            saveJSON(KEYS.tasks, DEFAULT_TASKS);
+            return DEFAULT_TASKS.slice();
+        }
+
+        return tasks;
+    }
+
+    function getSubmissions(account) {
+        const records = readJSON(KEYS.submissions, []);
+
+        if (!Array.isArray(records)) return [];
+
+        return records.filter(item => String(item.studentId) === String(account.id));
+    }
+
+    function progressMarkup(hours) {
+        const percent = Math.max(0, Math.min(100, (hours / REQUIRED_HOURS) * 100));
+
+        return `
+            <div class="progress-block">
+                <div class="progress-meta">
+                    <strong>${hours.toFixed(2)} / ${REQUIRED_HOURS} hrs</strong>
+                    <span>${percent.toFixed(0)}%</span>
+                </div>
+
+                <div class="progress-track" aria-hidden="true">
+                    <div class="progress-fill" style="width:${percent.toFixed(2)}%"></div>
+                </div>
+            </div>`;
+    }
+
+    // UPDATED BRIEF INTERNSHIP INFO
+    function internshipInfoPanel(account) {
+        const company = account.company || "Not yet assigned";
+
+        return panel(
+            "Brief Internship Info",
+            `
+            <div class="card-grid">
+                ${statCard("Student Name", account.name, "♙", "Registered student")}
+                ${statCard("ID Number", account.id, "▧", "Student identification")}
+                ${statCard("Company", company, "▤", "Internship placement")}
+                ${statCard("Required Hours", `${REQUIRED_HOURS} hrs`, "⌛", "Total required hours")}
+            </div>
+            `
+        );
+    }
+
+    // UPDATED INTERNSHIP PROGRESS
+    function internshipProgressPanel(account) {
+        const hours = totalHours(visibleAttendance(account, "student"));
+        const percent = Math.max(0, Math.min(100, (hours / REQUIRED_HOURS) * 100));
+        const remaining = Math.max(0, REQUIRED_HOURS - hours);
+
+        const company = account.company || "";
+
+        const status = !company
+            ? "Not yet assigned"
+            : hours >= REQUIRED_HOURS
+                ? "Completed"
+                : hours > 0
+                    ? "In Progress"
+                    : "Pending";
+
+        return panel(
+            "Internship Progress",
+            `
+            ${progressMarkup(hours)}
+
+            <div class="card-grid" style="margin-top: 20px;">
+                ${statCard("Progress", `${hours.toFixed(2)} / ${REQUIRED_HOURS} hrs`, "↗", `${percent.toFixed(0)}% completed`)}
+                ${statCard("Rendered Hours", `${hours.toFixed(2)} hrs`, "⌛", "Total completed hours")}
+                ${statCard("Remaining", `${remaining.toFixed(2)} hrs`, "◷", "Hours left to complete")}
+                ${statCard("Status", status, "▧", "Internship placement status")}
+            </div>
+            `
+        );
+    }
+
+    function renderTasks(account, role) {
+        if (role !== "student") {
+            return emptyState("Access restricted", "Only student accounts can view and submit tasks.");
+        }
+
+        const submissions = getSubmissions(account);
+
+        const cards = getTasks().map(task => {
+            const submission = submissions.find(item => item.taskId === task.id);
+            const status = submission ? "Submitted" : "Pending";
+
+            return `
+                <article class="task-card">
+                    <div class="task-card-top">
+                        <div>
+                            <h3>${escapeHTML(task.title)}</h3>
+                            <p>${escapeHTML(task.description)}</p>
+                        </div>
+
+                        ${statusBadge(status)}
+                    </div>
+
+                    <p class="task-due">Due: ${escapeHTML(task.due || "No due date")}</p>
+
+                    ${submission ? `
+                        <div class="notice">
+                            <strong>Your submission</strong>
+                            <p>${escapeHTML(submission.note)}</p>
+                            <p class="muted">Submitted ${escapeHTML(formatDate(submission.date))}</p>
+                        </div>
+                    ` : `
+                        <form class="task-submit-form" data-task-id="${escapeHTML(task.id)}">
+                            <label for="task-note-${escapeHTML(task.id)}">Submission</label>
+                            <textarea id="task-note-${escapeHTML(task.id)}" required placeholder="Write your task submission"></textarea>
+                            <button class="primary-btn" type="submit">Submit</button>
+                        </form>
+                    `}
+                </article>`;
+        }).join("");
+
+        return panel(
+            "My Tasks",
+            `<div class="task-list">${cards}</div>`,
+            "View each task, then submit your work."
+        );
     }
 
     function renderProfile(account, role) {
         return `
-            <div class="page-heading">
-                <div>
-                    <h2>My Profile</h2>
-                    <p class="muted">Your account information.</p>
-                </div>
-            </div>
             <div class="panel">
                 <div class="info-grid">
-                    <div class="info-card"><span>Full Name</span><strong>${escapeHTML(account.name)}</strong></div>
-                    <div class="info-card"><span>ID Number</span><strong>${escapeHTML(account.id)}</strong></div>
-                    <div class="info-card"><span>Role</span><strong>${escapeHTML(roleNames[role])}</strong></div>
-                    <div class="info-card"><span>Account Status</span><strong>${statusBadge("Active")}</strong></div>
+                    <div class="info-card">
+                        <span>Full Name</span>
+                        <strong>${escapeHTML(account.name)}</strong>
+                    </div>
+
+                    <div class="info-card">
+                        <span>ID Number</span>
+                        <strong>${escapeHTML(account.id)}</strong>
+                    </div>
+
+                    <div class="info-card">
+                        <span>Role</span>
+                        <strong>${escapeHTML(roleNames[role])}</strong>
+                    </div>
+
+                    <div class="info-card">
+                        <span>Account Status</span>
+                        <strong>${statusBadge("Active")}</strong>
+                    </div>
                 </div>
             </div>`;
     }
@@ -524,18 +827,39 @@
         return `
             ${panel(
                 "Company / Placement",
-                `<div class="notice">Your internship placement details can be added here when your company information is available.</div>
-                 <div class="info-grid">
-                    <div class="info-card"><span>Student Name</span><strong>${escapeHTML(account.name)}</strong></div>
-                    <div class="info-card"><span>Student ID</span><strong>${escapeHTML(account.id)}</strong></div>
-                    <div class="info-card"><span>Company Name</span><strong>Not yet assigned</strong></div>
-                    <div class="info-card"><span>Placement Status</span><strong>${statusBadge("Pending")}</strong></div>
-                 </div>`
+                `
+                <div class="notice">
+                    Your internship placement details can be added here when your company information is available.
+                </div>
+
+                <div class="info-grid">
+                    <div class="info-card">
+                        <span>Student Name</span>
+                        <strong>${escapeHTML(account.name)}</strong>
+                    </div>
+
+                    <div class="info-card">
+                        <span>Student ID</span>
+                        <strong>${escapeHTML(account.id)}</strong>
+                    </div>
+
+                    <div class="info-card">
+                        <span>Company Name</span>
+                        <strong>Not yet assigned</strong>
+                    </div>
+
+                    <div class="info-card">
+                        <span>Placement Status</span>
+                        <strong>${statusBadge("Pending")}</strong>
+                    </div>
+                </div>
+                `
             )}`;
     }
 
     function getRequirements(account) {
         const all = readJSON(KEYS.requirements, []);
+
         return Array.isArray(all)
             ? all.filter(item => String(item.studentId) === String(account.id))
             : [];
@@ -547,8 +871,6 @@
 
         if (role === "student") {
             records = getRequirements(account);
-        } else if (role === "supervisor") {
-            records = allRequirements;
         } else {
             records = allRequirements;
         }
@@ -573,6 +895,7 @@
                         <label for="requirement-name">Requirement Name</label>
                         <input id="requirement-name" required placeholder="e.g. Endorsement Letter">
                     </div>
+
                     <button class="primary-btn" type="submit">Add Requirement</button>
                 </form>`;
         } else if (role === "supervisor" || role === "coordinator") {
@@ -582,10 +905,12 @@
                         <label for="review-student-id">Student ID</label>
                         <input id="review-student-id" required placeholder="Student ID">
                     </div>
+
                     <div>
                         <label for="review-requirement-name">Requirement Name</label>
                         <input id="review-requirement-name" required placeholder="Requirement name">
                     </div>
+
                     <div class="full-span">
                         <label for="review-status">Status</label>
                         <select id="review-status">
@@ -594,6 +919,7 @@
                             <option>Rejected</option>
                         </select>
                     </div>
+
                     <div class="full-span">
                         <button class="primary-btn" type="submit">Save Requirement Status</button>
                     </div>
@@ -602,10 +928,78 @@
 
         return `
             ${panel(role === "student" ? "My Requirements" : "Requirements Review", addForm)}
-            ${panel("Requirement Records", table(["Student", "Requirement", "Status", "Date"], rows))}`;
+            ${panel("Requirement Records", table(["Student", "Requirement", "Status", "Date"], rows))}
+        `;
+    }
+
+    function renderStudentAttendance(account) {
+        const records = visibleAttendance(account, "student").slice().reverse();
+        const hours = totalHours(records);
+
+        const rows = records.map(record => [
+            escapeHTML(formatDate(record.date)),
+            escapeHTML(record.timeIn || "—"),
+            escapeHTML(record.timeOut || "—"),
+            `${Number(record.hours || 0).toFixed(2)} hrs`,
+            statusBadge(record.timeOut ? "Completed" : "Timed In")
+        ]);
+
+        return `
+            <div class="qr-layout">
+                <section class="qr-card">
+                    <h3>QR Code</h3>
+                    <p>Show this code to your supervisor to record attendance.</p>
+
+                    <div id="student-qr" class="qr-code-box">
+                        <span class="muted">Generating QR code...</span>
+                    </div>
+
+                    <div class="qr-id">${escapeHTML(account.id)}</div>
+                    <p>${escapeHTML(account.name)}</p>
+
+                    <button id="download-qr" class="secondary-btn" type="button">
+                        Download QR Code
+                    </button>
+
+                    <p id="qr-message" class="form-message"></p>
+                </section>
+
+                <section class="panel">
+                    <div class="panel-header">
+                        <div>
+                            <h3>Rendered Hours</h3>
+                            <p>Hours completed from your attendance records.</p>
+                        </div>
+                    </div>
+
+                    ${progressMarkup(hours)}
+
+                    <div class="info-grid" style="margin-top:16px">
+                        <div class="info-card">
+                            <span>Rendered Hours</span>
+                            <strong>${hours.toFixed(2)} hrs</strong>
+                        </div>
+
+                        <div class="info-card">
+                            <span>Records</span>
+                            <strong>${records.length}</strong>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            ${panel(
+                "Attendance Records",
+                table(["Date", "Time In", "Time Out", "Hours", "Status"], rows)
+            )}
+        `;
     }
 
     function renderAttendance(account, role) {
+        if (role === "student") {
+            return renderStudentAttendance(account);
+        }
+
         const records = visibleAttendance(account, role).slice().reverse();
 
         const rows = records.map(record => [
@@ -618,21 +1012,23 @@
         ]);
 
         return `
-            ${role === "student" ? `
-                <div class="notice"><strong>Reminder:</strong> Show your QR code to your supervisor when recording your attendance.</div>
-            ` : `
-                <div class="notice"><strong>Attendance:</strong> Use Scan QR Attendance to record student time in and time out.</div>
-            `}
+            <div class="notice">
+                <strong>Attendance:</strong>
+                Use Scan QR Attendance to record student time in and time out.
+            </div>
+
             <div class="card-grid">
                 ${statCard("Total Records", records.length, "◷", "Visible attendance records")}
                 ${statCard("Rendered Hours", totalHours(records).toFixed(2), "⌛", "Completed hours")}
                 ${statCard("Completed", records.filter(item => item.timeOut).length, "✓", "Time out recorded")}
                 ${statCard("In Progress", records.filter(item => !item.timeOut).length, "◴", "Waiting for time out")}
             </div>
+
             ${panel(
-                role === "student" ? "My Attendance History" : "Attendance Records",
+                "Attendance Records",
                 table(["Student", "Date", "Time In", "Time Out", "Hours", "Status"], rows)
-            )}`;
+            )}
+        `;
     }
 
     function renderMyQR(account, role) {
@@ -641,33 +1037,56 @@
         }
 
         return `
-            <div class="page-heading">
-                <div>
-                    <h2>My Student QR Code</h2>
-                    <p class="muted">Show this code to your supervisor for attendance.</p>
-                </div>
-            </div>
             <div class="qr-layout">
                 <section class="qr-card">
                     <h3>Student Identification</h3>
                     <p>This QR code contains your InternTrack student ID.</p>
+
                     <div id="student-qr" class="qr-code-box">
                         <span class="muted">Generating QR code...</span>
                     </div>
+
                     <div class="qr-id">${escapeHTML(account.id)}</div>
                     <p>${escapeHTML(account.name)}</p>
-                    <button id="download-qr" class="secondary-btn" type="button">Download QR Code</button>
+
+                    <button id="download-qr" class="secondary-btn" type="button">
+                        Download QR Code
+                    </button>
+
                     <p id="qr-message" class="form-message"></p>
                 </section>
+
                 <section class="panel">
-                    <div class="panel-header"><h3>How to Use Your QR Code</h3></div>
-                    <div class="list-stack">
-                        <div class="list-item"><div><strong>1. Open your QR Code</strong><p>Go to My QR Code in the sidebar.</p></div></div>
-                        <div class="list-item"><div><strong>2. Show it to your supervisor</strong><p>Keep your screen bright so the camera can read the code.</p></div></div>
-                        <div class="list-item"><div><strong>3. Confirm your attendance</strong><p>Your supervisor scans the code to record time in or time out.</p></div></div>
+                    <div class="panel-header">
+                        <h3>How to Use Your QR Code</h3>
                     </div>
+
+                    <div class="list-stack">
+                        <div class="list-item">
+                            <div>
+                                <strong>1. Open your QR Code</strong>
+                                <p>Go to Attendance in the sidebar.</p>
+                            </div>
+                        </div>
+
+                        <div class="list-item">
+                            <div>
+                                <strong>2. Show it to your supervisor</strong>
+                                <p>Keep your screen bright so the camera can read the code.</p>
+                            </div>
+                        </div>
+
+                        <div class="list-item">
+                            <div>
+                                <strong>3. Confirm your attendance</strong>
+                                <p>Your supervisor scans the code to record time in and time out.</p>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="notice" style="margin-top:18px">
-                        <strong>Important:</strong> Your QR code identifies your account. Attendance is saved in the browser used by this demo.
+                        <strong>Important:</strong>
+                        Your QR code identifies your account. Attendance is saved in the browser used by this demo.
                     </div>
                 </section>
             </div>`;
@@ -679,16 +1098,12 @@
         }
 
         return `
-            <div class="page-heading">
-                <div>
-                    <h2>QR Attendance Scanner</h2>
-                    <p class="muted">Use your camera to scan a registered student's QR code.</p>
-                </div>
-            </div>
             <div class="notice">
-                <strong>How it works:</strong> First scan records Time In. The second scan records Time Out.
+                <strong>How it works:</strong>
+                First scan records Time In. The second scan records Time Out.
                 Rendered hours are calculated after Time Out.
             </div>
+
             <div class="qr-layout">
                 <section class="panel">
                     <div class="panel-header">
@@ -697,18 +1112,33 @@
                             <p>Allow camera access when your browser asks.</p>
                         </div>
                     </div>
+
                     <div id="qr-reader" class="scanner-box"></div>
+
                     <div class="scanner-actions">
-                        <button id="start-scanner" class="primary-btn" type="button">Start Camera</button>
-                        <button id="stop-scanner" class="secondary-btn" type="button" disabled>Stop Camera</button>
+                        <button id="start-scanner" class="primary-btn" type="button">
+                            Start Camera
+                        </button>
+
+                        <button id="stop-scanner" class="secondary-btn" type="button" disabled>
+                            Stop Camera
+                        </button>
                     </div>
-                    <div id="scan-status" class="scanner-status">Press Start Camera to begin scanning.</div>
+
+                    <div id="scan-status" class="scanner-status">
+                        Press Start Camera to begin scanning.
+                    </div>
                 </section>
+
                 <section class="panel">
-                    <div class="panel-header"><h3>Scan Result</h3></div>
+                    <div class="panel-header">
+                        <h3>Scan Result</h3>
+                    </div>
+
                     <div id="scan-result">
                         ${emptyState("Waiting for scan", "The student's information will appear here after a successful scan.", "▦")}
                     </div>
+
                     <div class="notice" style="margin-top:18px">
                         The camera usually works on HTTPS or localhost. If permission is denied, check your browser's camera settings.
                     </div>
@@ -719,24 +1149,65 @@
     function renderDocuments() {
         return panel(
             "Documents",
-            `<div class="notice">This section is ready for internship documents such as forms, reports, and certificates.</div>
-             ${emptyState("No documents added", "Document upload and storage have not been connected in this local demo.")}`
+            `
+            <div class="notice">
+                This section is ready for internship documents such as forms, reports, and certificates.
+            </div>
+
+            ${emptyState("No documents added", "Document upload and storage have not been connected in this local demo.")}
+            `
         );
     }
 
     function renderEvaluation(account, role) {
         if (role === "student") {
-            return panel(
-                "My Evaluation",
-                `<div class="info-grid">
-                    <div class="info-card"><span>Student</span><strong>${escapeHTML(account.name)}</strong></div>
-                    <div class="info-card"><span>Evaluation Status</span><strong>${statusBadge("Pending")}</strong></div>
-                </div>
-                <p class="muted">Your evaluation results will appear here when your supervisor records them.</p>`
-            );
+            const feedback = readJSON(KEYS.feedback, []);
+
+            const mine = Array.isArray(feedback)
+                ? feedback.filter(item => String(item.studentId) === String(account.id))
+                : [];
+
+            return `
+                ${panel(
+                    "Evaluation",
+                    `
+                    <div class="info-grid">
+                        <div class="info-card">
+                            <span>Student</span>
+                            <strong>${escapeHTML(account.name)}</strong>
+                        </div>
+
+                        <div class="info-card">
+                            <span>Evaluation Status</span>
+                            <strong>${statusBadge("Pending")}</strong>
+                        </div>
+                    </div>
+
+                    <p class="muted">
+                        Your evaluation results will appear here when your supervisor records them.
+                    </p>
+                    `
+                )}
+
+                ${panel(
+                    "Feedback",
+                    mine.length
+                        ? `<div class="list-stack">${mine.map(item => `
+                            <div class="list-item">
+                                <div>
+                                    <strong>${escapeHTML(item.title || "Feedback")}</strong>
+                                    <p>${escapeHTML(item.message || "")}</p>
+                                </div>
+                                <span class="muted">${escapeHTML(item.date || "")}</span>
+                            </div>
+                        `).join("")}</div>`
+                        : emptyState("No feedback yet", "Feedback from your supervisor will appear here.", "★")
+                )}
+            `;
         }
 
         const students = loadAccounts().filter(item => item.role === "student");
+
         const rows = students.map(student => [
             escapeHTML(student.name),
             escapeHTML(student.id),
@@ -751,6 +1222,7 @@
 
     function renderNotifications(account, role) {
         const notifications = readJSON(KEYS.notifications, []);
+
         const visible = Array.isArray(notifications)
             ? notifications.filter(item => !item.role || item.role === role)
             : [];
@@ -765,7 +1237,8 @@
                             <p>${escapeHTML(item.message || "")}</p>
                         </div>
                         <span class="muted">${escapeHTML(item.date || "")}</span>
-                    </div>`).join("")}</div>`
+                    </div>
+                `).join("")}</div>`
                 : emptyState("No notifications yet", "Updates and reminders will appear here.", "♧")
         );
     }
@@ -800,7 +1273,10 @@
             statusBadge("Active")
         ]);
 
-        return panel("Student Directory", table(["Full Name", "Student ID", "Status"], rows));
+        return panel(
+            "Student Directory",
+            table(["Full Name", "Student ID", "Status"], rows)
+        );
     }
 
     function renderCompanies() {
@@ -810,8 +1286,36 @@
         );
     }
 
-    function renderProgress() {
-        const students = loadAccounts().filter(account => account.role === "student");
+    function renderProgress(account, role) {
+        if (role === "student") {
+            const records = visibleAttendance(account, "student");
+            const hours = totalHours(records);
+
+            const rows = records.slice().reverse().map(record => [
+                escapeHTML(formatDate(record.date)),
+                escapeHTML(record.timeIn || "—"),
+                escapeHTML(record.timeOut || "—"),
+                `${Number(record.hours || 0).toFixed(2)} hrs`
+            ]);
+
+            return `
+                ${panel("Internship Progress", progressMarkup(hours))}
+
+                <div class="card-grid">
+                    ${statCard("Rendered Hours", hours.toFixed(2), "⌛", "Completed hours")}
+                    ${statCard("Remaining Hours", Math.max(0, REQUIRED_HOURS - hours).toFixed(2), "◴", "Hours left to complete")}
+                    ${statCard("Attendance Records", records.length, "◷", "Saved attendance")}
+                    ${statCard("Required Hours", REQUIRED_HOURS, "★", "Internship requirement")}
+                </div>
+
+                ${panel(
+                    "Hours from Attendance",
+                    table(["Date", "Time In", "Time Out", "Hours"], rows)
+                )}
+            `;
+        }
+
+        const students = loadAccounts().filter(item => item.role === "student");
 
         const rows = students.map(student => {
             const records = getAttendance().filter(item => String(item.studentId) === String(student.id));
@@ -825,7 +1329,10 @@
             ];
         });
 
-        return panel("Internship Progress", table(["Student", "ID Number", "Rendered Hours", "Progress"], rows));
+        return panel(
+            "Internship Progress",
+            table(["Student", "ID Number", "Rendered Hours", "Progress"], rows)
+        );
     }
 
     function renderReports() {
@@ -851,7 +1358,12 @@
                 ${statCard("Rendered Hours", totalHours(records).toFixed(2), "⌛", "Completed hours")}
                 ${statCard("Completed Sessions", records.filter(item => item.timeOut).length, "✓", "Time out recorded")}
             </div>
-            ${panel("Student Attendance Summary", table(["Student", "ID Number", "Records", "Hours", "Completed Sessions"], rows))}`;
+
+            ${panel(
+                "Student Attendance Summary",
+                table(["Student", "ID Number", "Records", "Hours", "Completed Sessions"], rows)
+            )}
+        `;
     }
 
     function setScanStatus(message, type = "") {
@@ -868,14 +1380,40 @@
 
         container.innerHTML = `
             <div class="info-grid">
-                <div class="info-card"><span>Student Name</span><strong>${escapeHTML(record.studentName)}</strong></div>
-                <div class="info-card"><span>Student ID</span><strong>${escapeHTML(record.studentId)}</strong></div>
-                <div class="info-card"><span>Date</span><strong>${escapeHTML(formatDate(record.date))}</strong></div>
-                <div class="info-card"><span>Time In</span><strong>${escapeHTML(record.timeIn || "—")}</strong></div>
-                <div class="info-card"><span>Time Out</span><strong>${escapeHTML(record.timeOut || "—")}</strong></div>
-                <div class="info-card"><span>Rendered Hours</span><strong>${Number(record.hours || 0).toFixed(2)} hrs</strong></div>
+                <div class="info-card">
+                    <span>Student Name</span>
+                    <strong>${escapeHTML(record.studentName)}</strong>
+                </div>
+
+                <div class="info-card">
+                    <span>Student ID</span>
+                    <strong>${escapeHTML(record.studentId)}</strong>
+                </div>
+
+                <div class="info-card">
+                    <span>Date</span>
+                    <strong>${escapeHTML(formatDate(record.date))}</strong>
+                </div>
+
+                <div class="info-card">
+                    <span>Time In</span>
+                    <strong>${escapeHTML(record.timeIn || "—")}</strong>
+                </div>
+
+                <div class="info-card">
+                    <span>Time Out</span>
+                    <strong>${escapeHTML(record.timeOut || "—")}</strong>
+                </div>
+
+                <div class="info-card">
+                    <span>Rendered Hours</span>
+                    <strong>${Number(record.hours || 0).toFixed(2)} hrs</strong>
+                </div>
             </div>
-            <div class="notice" style="margin-top:16px">${escapeHTML(message)}</div>`;
+
+            <div class="notice" style="margin-top:16px">
+                ${escapeHTML(message)}
+            </div>`;
     }
 
     function handleStudentScan(decodedText, supervisor) {
@@ -935,12 +1473,15 @@
 
                 records.push(record);
                 message = "Time In recorded successfully.";
+
             } else if (record.timeIn && !record.timeOut) {
                 record.timeOut = timeString();
                 record.hours = hoursBetween(record.timeIn, record.timeOut);
                 record.supervisorId = String(supervisor.id);
                 record.supervisorName = supervisor.name;
+
                 message = `Time Out recorded. Rendered hours: ${record.hours.toFixed(2)}.`;
+
             } else {
                 setScanStatus("Attendance for this student is already complete today.", "error");
                 renderScanResult(record, "This student already has a Time In and Time Out record for today.");
@@ -950,6 +1491,7 @@
             saveAttendance(records);
             setScanStatus(message, "success");
             renderScanResult(record, message);
+
         } finally {
             window.setTimeout(() => {
                 scannerBusy = false;
@@ -994,7 +1536,9 @@
             );
 
             if (scannerStopButton) scannerStopButton.disabled = false;
+
             setScanStatus("Camera is active. Point it at a student's QR code.", "success");
+
         } catch (error) {
             console.error("Camera start failed:", error);
 
@@ -1007,10 +1551,15 @@
             }
 
             activeScanner = null;
+
             setScanStatus("Unable to start camera. Allow camera access and use HTTPS or localhost.", "error");
+
         } finally {
             scannerStarting = false;
-            if (scannerStartButton) scannerStartButton.disabled = Boolean(activeScanner);
+
+            if (scannerStartButton) {
+                scannerStartButton.disabled = Boolean(activeScanner);
+            }
         }
     }
 
@@ -1074,7 +1623,7 @@
     }
 
     function bindPageActions(pageId, account, role) {
-        if (pageId === "my-qr" && role === "student") {
+        if ((pageId === "my-qr" || pageId === "attendance") && role === "student") {
             generateStudentQR(account);
 
             const downloadButton = $("#download-qr");
@@ -1101,6 +1650,7 @@
                     const link = document.createElement("a");
                     link.href = url;
                     link.download = `InternTrack-QR-${account.id}.png`;
+
                     document.body.appendChild(link);
                     link.click();
                     link.remove();
@@ -1126,6 +1676,43 @@
             }
         }
 
+        if (pageId === "tasks" && role === "student") {
+            document.querySelectorAll(".task-submit-form").forEach(form => {
+                form.addEventListener("submit", event => {
+                    event.preventDefault();
+
+                    const taskId = form.dataset.taskId;
+                    const noteField = form.querySelector("textarea");
+                    const note = noteField ? noteField.value.trim() : "";
+
+                    if (!taskId || !note) return;
+
+                    const records = readJSON(KEYS.submissions, []);
+                    const list = Array.isArray(records) ? records : [];
+
+                    const existing = list.find(item =>
+                        String(item.studentId) === String(account.id) && item.taskId === taskId
+                    );
+
+                    if (existing) {
+                        existing.note = note;
+                        existing.date = todayString();
+                    } else {
+                        list.push({
+                            taskId,
+                            studentId: String(account.id),
+                            studentName: account.name,
+                            note,
+                            date: todayString()
+                        });
+                    }
+
+                    saveJSON(KEYS.submissions, list);
+                    showPage("tasks");
+                });
+            });
+        }
+
         if (pageId === "requirements") {
             const studentForm = $("#requirement-form");
 
@@ -1137,6 +1724,7 @@
                     if (!name) return;
 
                     const records = readJSON(KEYS.requirements, []);
+
                     records.push({
                         studentId: String(account.id),
                         studentName: account.name,
@@ -1170,8 +1758,10 @@
                     }
 
                     const records = readJSON(KEYS.requirements, []);
+
                     const existing = records.find(item =>
-                        String(item.studentId) === studentId && item.name.toLowerCase() === name.toLowerCase()
+                        String(item.studentId) === studentId &&
+                        item.name.toLowerCase() === name.toLowerCase()
                     );
 
                     if (existing) {
@@ -1269,7 +1859,12 @@
             saveAccounts(accounts);
 
             $("#register-form").reset();
-            setMessage("#register-message", "Account created successfully. You can now sign in.", "success");
+
+            setMessage(
+                "#register-message",
+                "Account created successfully. You can now sign in.",
+                "success"
+            );
         });
     }
 
@@ -1304,7 +1899,12 @@
             saveAccounts(accounts);
 
             $("#forgot-form").reset();
-            setMessage("#forgot-message", "Password updated. You can now sign in.", "success");
+
+            setMessage(
+                "#forgot-message",
+                "Password updated. You can now sign in.",
+                "success"
+            );
         });
     }
 
@@ -1330,11 +1930,33 @@
         });
 
         $("#logout-btn").addEventListener("click", signOut);
+        $("#theme-toggle").addEventListener("click", toggleTheme);
 
-        $("#theme-toggle").addEventListener("click", () => {
-            const nextTheme = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
-            localStorage.setItem(KEYS.theme, nextTheme);
-            applyTheme();
+        const studentTheme = $("#student-theme-toggle");
+
+        if (studentTheme) {
+            studentTheme.addEventListener("click", event => {
+                event.stopPropagation();
+                toggleTheme();
+            });
+        }
+
+        const userToggle = $("#sidebar-user-toggle");
+
+        if (userToggle) {
+            userToggle.addEventListener("click", toggleStudentMenu);
+        }
+
+        document.querySelectorAll("[data-quick-page]").forEach(button => {
+            button.addEventListener("click", () => showPage(button.dataset.quickPage));
+        });
+
+        document.addEventListener("click", event => {
+            const wrap = $(".sidebar-user-wrap");
+
+            if (!wrap || wrap.contains(event.target)) return;
+
+            closeStudentMenu();
         });
     }
 
@@ -1356,6 +1978,6 @@
             showOnly("login-page");
         }
     }
-
+    
     document.addEventListener("DOMContentLoaded", init);
 })();

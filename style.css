@@ -290,13 +290,68 @@ button:focus-visible {
     color: #a8a8a8;
 }
 
+.sidebar-user-wrap {
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
 .sidebar-user {
     display: flex;
     align-items: center;
     gap: 10px;
+    width: 100%;
     padding: 19px 7px;
-    border-bottom: 1px solid rgba(255,255,255,0.1);
+    border: 0;
+    background: transparent;
+    color: inherit;
+    text-align: left;
     min-width: 0;
+}
+
+body:not(.student-session) #sidebar-user-toggle {
+    cursor: default;
+}
+
+.sidebar-user-arrow {
+    margin-left: auto;
+    color: #b7b7b7;
+    font-size: 14px;
+    transition: transform 0.2s ease;
+}
+
+#sidebar-user-toggle[aria-expanded="true"] .sidebar-user-arrow {
+    transform: rotate(180deg);
+}
+
+.student-quick-menu {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    padding: 0 7px 16px;
+}
+
+.quick-icon {
+    display: grid;
+    justify-items: center;
+    gap: 6px;
+    padding: 10px 4px;
+    border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.08);
+    background: rgba(255,255,255,0.04);
+    color: white;
+    font-size: 16px;
+}
+
+.quick-label {
+    font-size: 9px;
+    line-height: 1.2;
+    color: #cfcfcf;
+    text-align: center;
+}
+
+.quick-icon:hover,
+.quick-icon:focus-visible {
+    background: rgba(255,115,0,0.18);
+    color: #ff8b32;
 }
 
 .avatar {
@@ -796,6 +851,83 @@ tbody tr:last-child td {
     color: var(--accent);
 }
 
+.progress-block {
+    display: grid;
+    gap: 8px;
+}
+
+.progress-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    font-size: 13px;
+}
+
+.progress-meta span {
+    color: var(--accent);
+    font-weight: 700;
+}
+
+.progress-track {
+    height: 10px;
+    border-radius: 999px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    border-radius: inherit;
+    background: var(--accent);
+}
+
+.task-list {
+    display: grid;
+    gap: 14px;
+}
+
+.task-card {
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface);
+}
+
+.task-card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.task-card h3 {
+    margin: 0 0 6px;
+    font-size: 15px;
+}
+
+.task-card p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.task-due {
+    margin: 10px 0 12px !important;
+    font-size: 12px !important;
+}
+
+.task-submit-form textarea {
+    min-height: 90px;
+    resize: vertical;
+}
+
+.task-submit-form .primary-btn {
+    margin-top: 12px;
+}
+
 .form-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -882,6 +1014,10 @@ tbody tr:last-child td {
 
     .sidebar-user {
         padding: 12px 5px;
+    }
+
+    body.student-session .sidebar-bottom {
+        grid-template-columns: 1fr;
     }
 
     .nav-label {
