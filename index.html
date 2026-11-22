@@ -4,36 +4,71 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#ff7300">
-    <title>InternTrack | Internship Tracking System</title>
-    <link rel="stylesheet" href="css/style.css">
+    <title>Login | InternTrack</title>
+    <link rel="stylesheet" href="css/style.css?v=9">
 </head>
 <body>
 
     <!-- LOGIN PAGE -->
-    <section id="login-page" class="auth-page">
-        <div class="auth-box">
-            <img src="images/logs.png" alt="InternTrack Logo" class="login-logo">
-            <p class="eyebrow">INTERNSHIP TRACKING SYSTEM</p>
-            <h1>Welcome Back</h1>
-            <p class="muted">Sign in to continue to InternTrack.</p>
+    <section id="login-page" class="auth-page auth-split-page">
+        <div class="auth-split-shell">
+            <div class="auth-left-pane">
+                <div class="hero-brand-circle">IT</div>
 
-            <form id="login-form">
-                <label for="login-id">ID Number</label>
-                <input id="login-id" type="text" placeholder="Enter your ID number" required>
+                <div class="hero-copy-group">
+                    <p class="hero-eyebrow">INTERNSHIP MANAGEMENT PORTAL</p>
+                    <h1 class="hero-headline">Build your future,<br>one day at a time.</h1>
+                    <p class="hero-subcopy">One workspace for your internship placement, attendance, documents, and progress.</p>
+                </div>
 
-                <label for="login-password">Password</label>
-                <input id="login-password" type="password" placeholder="Enter your password" required>
+                <p class="hero-roles">STUDENT · SUPERVISOR · COORDINATOR</p>
+            </div>
 
-                <button type="submit" class="primary-btn full-btn">Sign In</button>
-                <p id="login-message" class="form-message"></p>
-            </form>
+            <div class="auth-right-pane">
+                <div class="auth-form-card">
+                    <div class="login-brand-header">
+                        <div class="login-its-badge">ITS</div>
+                        <div class="login-brand-meta">
+                            <h2>InternTrack</h2>
+                            <p>Internship Management System</p>
+                        </div>
+                    </div>
 
-            <button type="button" id="show-forgot" class="text-btn">Forgot Password?</button>
+                    <p class="login-helper-text">Use the account created for your internship role.</p>
 
-            <p class="auth-footer">
-                Don't have an account?
-                <button type="button" id="show-register" class="text-btn">Create Account</button>
-            </p>
+                    <form id="login-form">
+                        <label for="login-id">Email or username</label>
+                        <input id="login-id" type="text" placeholder="Enter your email or username" required>
+
+                        <label for="login-password">Password</label>
+                        <div class="password-input-wrap">
+                            <input id="login-password" type="password" placeholder="Enter your password" required>
+                            <button type="button" id="toggle-login-password" class="password-toggle-btn">Show</button>
+                        </div>
+
+                        <div class="login-options-row">
+                            <label class="remember-me-label" for="remember-me">
+                                <input id="remember-me" type="checkbox">
+                                <span>Remember me</span>
+                            </label>
+                            <button type="button" id="show-forgot" class="link-inline-btn">Forgot password?</button>
+                        </div>
+
+                        <button type="submit" class="primary-btn full-btn login-submit-btn">
+                            <span>Sign in</span>
+                            <span aria-hidden="true">→</span>
+                        </button>
+                        <p id="login-message" class="form-message"></p>
+                    </form>
+
+                    <div class="login-divider"></div>
+
+                    <p class="auth-footer auth-footer-left">
+                        Don't have an account?
+                        <button type="button" id="show-register" class="link-inline-btn">Create an account</button>
+                    </p>
+                </div>
+            </div>
         </div>
     </section>
 
@@ -43,21 +78,77 @@
             <div class="brand-mark">IT</div>
             <p class="eyebrow">JOIN INTERNTRACK</p>
             <h1>Create Account</h1>
-            <p class="muted">Enter your information to get started.</p>
+            <p class="muted">Internship Management and Monitoring System</p>
 
             <form id="register-form">
+                <label for="register-role">Register As</label>
+                <select id="register-role" required>
+                    <option value="student">Student Intern</option>
+                    <option value="supervisor">Supervisor</option>
+                    <option value="coordinator">Internship Coordinator</option>
+                </select>
+
                 <label for="register-name">Full Name</label>
                 <input id="register-name" type="text" placeholder="Enter your full name" required>
 
-                <label for="register-id">ID Number</label>
-                <input id="register-id" type="text" placeholder="Enter your ID number" required>
+                <label for="register-email">Email Address</label>
+                <input id="register-email" type="email" placeholder="Enter your email address" required>
 
-                <label for="register-role">Account Role</label>
-                <select id="register-role" required>
-                    <option value="student">Student</option>
-                    <option value="supervisor">Supervisor</option>
-                    <option value="coordinator">Coordinator</option>
-                </select>
+                <!-- Coordinator Information Box -->
+                <div id="coordinator-register-fields" class="verification-box hidden">
+                    <div class="verification-title">Coordinator Information</div>
+                    <label for="register-coord-id">Coordinator ID</label>
+                    <input id="register-coord-id" type="text" placeholder="e.g. CRD-001">
+
+                    <label for="register-coord-contact">Contact Number (Optional)</label>
+                    <input id="register-coord-contact" type="text" placeholder="Enter contact number">
+                </div>
+
+                <!-- Student Information Box -->
+                <div id="student-register-fields" class="verification-box">
+                    <div class="verification-title">Student Information</div>
+
+                    <label for="register-id" id="register-id-label">Student ID</label>
+                    <input id="register-id" type="text" placeholder="e.g. 2024-001">
+
+                    <label for="register-program">Program</label>
+                    <input id="register-program" type="text" placeholder="Example: BSIT">
+
+                    <label for="register-year">Year Level</label>
+                    <select id="register-year">
+                        <option value="">Select Year Level</option>
+                        <option value="1st Year">1st Year</option>
+                        <option value="2nd Year">2nd Year</option>
+                        <option value="3rd Year">3rd Year</option>
+                        <option value="4th Year">4th Year</option>
+                    </select>
+
+                    <label for="register-contact">Contact Number (Optional)</label>
+                    <input id="register-contact" type="text" placeholder="Enter contact number">
+
+                    <label for="register-address">Address (Optional)</label>
+                    <textarea id="register-address" rows="2" placeholder="Enter address"></textarea>
+                </div>
+
+                <!-- Supervisor Information Box -->
+                <div id="supervisor-register-fields" class="verification-box hidden">
+                    <div class="verification-title">Supervisor Information</div>
+
+                    <label for="register-sup-id">Supervisor ID</label>
+                    <input id="register-sup-id" type="text" placeholder="e.g. SUP-001">
+
+                    <label for="register-company">Company Name</label>
+                    <input id="register-company" type="text" placeholder="e.g. ABC Technology Solutions">
+
+                    <label for="register-position">Position</label>
+                    <input id="register-position" type="text" placeholder="e.g. IT Supervisor">
+
+                    <label for="register-sup-contact">Contact Number (Optional)</label>
+                    <input id="register-sup-contact" type="text" placeholder="Enter contact number">
+
+                    <label for="register-sup-address">Address (Optional)</label>
+                    <textarea id="register-sup-address" rows="2" placeholder="Enter address"></textarea>
+                </div>
 
                 <label for="register-password">Password</label>
                 <input id="register-password" type="password" placeholder="At least 6 characters" required>
@@ -82,11 +173,11 @@
             <div class="brand-mark">IT</div>
             <p class="eyebrow">ACCOUNT RECOVERY</p>
             <h1>Reset Password</h1>
-            <p class="muted">Enter your ID number and create a new password.</p>
+            <p class="muted">Enter your ID number or email and create a new password.</p>
 
             <form id="forgot-form">
-                <label for="forgot-id">ID Number</label>
-                <input id="forgot-id" type="text" placeholder="Enter your registered ID" required>
+                <label for="forgot-id">ID Number or Email</label>
+                <input id="forgot-id" type="text" placeholder="Enter your registered ID or email" required>
 
                 <label for="forgot-password">New Password</label>
                 <input id="forgot-password" type="password" placeholder="At least 6 characters" required>
@@ -106,100 +197,35 @@
 
     <!-- MAIN SYSTEM -->
     <section id="system-page" class="system-layout hidden">
-
-        <aside class="sidebar">
-
-            <!-- SIDEBAR BRAND -->
-            <div class="sidebar-brand">
-                <img src="images/logs.png" alt="InternTrack Logo" class="sidebar-logo">
-                <div>
-                    <h2>InternTrack</h2>
-                    <p>Internship Tracking</p>
+        <aside id="sidebar" class="sidebar collapsed-brand">
+            <div class="sidebar-top-row">
+                <div class="sidebar-brand-row">
+                    <img src="images/logs.png" alt="InternTrack Logo" class="sidebar-logo">
+                    <div id="sidebar-brand-text" class="sidebar-brand-text hidden">
+                        <h2>InternTrack</h2>
+                        <p id="sidebar-role-subtitle">Student Intern</p>
+                    </div>
                 </div>
-            </div>
-
-            <!-- STUDENT USER DROPDOWN -->
-            <div class="sidebar-user-wrap">
 
                 <button
                     type="button"
-                    id="sidebar-user-toggle"
-                    class="sidebar-user"
+                    id="sidebar-arrow-toggle"
+                    class="sidebar-arrow-btn"
                     aria-expanded="false"
+                    aria-controls="sidebar-expanded-panel"
+                    title="Toggle InternTrack menu"
                 >
-                    <div id="sidebar-avatar" class="avatar">IT</div>
-
-                    <div class="sidebar-user-info">
-                        <strong id="sidebar-name">User</strong>
-                        <span id="sidebar-role">Student</span>
-                    </div>
-
-                    <span
-                        id="sidebar-user-arrow"
-                        class="sidebar-user-arrow hidden"
-                        aria-hidden="true"
-                    >▾</span>
+                    <span id="sidebar-arrow-icon" class="sidebar-arrow-icon" aria-hidden="true">▸</span>
                 </button>
-
-                <!-- QUICK MENU: STUDENT ONLY -->
-                <div id="student-quick-menu" class="student-quick-menu hidden">
-
-                    <button
-                        type="button"
-                        class="quick-icon"
-                        data-quick-page="notifications"
-                        title="Notifications"
-                    >
-                        <span>♧</span>
-                        <span class="quick-label">Notifications</span>
-                    </button>
-
-                    <button
-                        type="button"
-                        class="quick-icon"
-                        data-quick-page="profile"
-                        title="My Profile"
-                    >
-                        <span>♙</span>
-                        <span class="quick-label">My Profile</span>
-                    </button>
-
-                    <button
-                        type="button"
-                        id="student-theme-toggle"
-                        class="quick-icon"
-                        title="Dark Mode"
-                    >
-                        <span id="student-theme-icon">☀</span>
-                        <span id="student-theme-label" class="quick-label">Dark Mode</span>
-                    </button>
-
-                </div>
             </div>
 
-            <!-- MAIN NAVIGATION -->
-            <p class="nav-label">MAIN MENU</p>
-            <nav id="sidebar-nav"></nav>
-
-            <!-- SIDEBAR BOTTOM -->
-            <div class="sidebar-bottom">
-
-                <!-- FOR COORDINATOR AND SUPERVISOR -->
-                <button type="button" id="theme-toggle" class="theme-toggle">
-                    <span id="theme-icon">☀</span>
-                    <span id="theme-label">Light Mode</span>
-                </button>
-
-                <button type="button" id="logout-btn" class="logout-btn">
-                    <span>↪</span> Sign Out
-                </button>
-
+            <div id="sidebar-expanded-panel" class="sidebar-expanded-panel hidden">
+                <p class="nav-label">▸ MAIN MENU</p>
+                <nav id="sidebar-nav"></nav>
             </div>
         </aside>
 
-        <!-- MAIN CONTENT -->
         <main class="main-area">
-
             <header class="topbar">
                 <div>
                     <p class="eyebrow">INTERNTRACK WORKSPACE</p>
@@ -207,11 +233,46 @@
                     <p id="page-subtitle" class="muted">Your internship overview.</p>
                 </div>
 
-                <div class="topbar-user">
-                    <div id="header-avatar" class="avatar">IT</div>
-                    <div>
-                        <strong id="header-name">User</strong>
-                        <p id="header-id" class="muted">ID Number</p>
+                <div class="topbar-user-wrap" id="topbar-user-wrap">
+                    <button
+                        type="button"
+                        id="topbar-user-toggle"
+                        class="topbar-user-btn"
+                        aria-expanded="false"
+                        aria-haspopup="true"
+                    >
+                        <div id="header-avatar" class="avatar">IT</div>
+                        <div class="topbar-user-meta">
+                            <strong id="header-name">User</strong>
+                            <p id="header-id" class="muted">ID Number</p>
+                        </div>
+                        <span id="header-notif-badge" class="header-notif-count hidden">0</span>
+                        <span class="topbar-chevron" aria-hidden="true">▾</span>
+                    </button>
+
+                    <div id="topbar-quick-menu" class="topbar-dropdown hidden" role="menu">
+                        <button type="button" class="topbar-menu-item" data-quick-page="notifications" role="menuitem">
+                            <span class="menu-item-icon">🔔</span>
+                            <span>Notifications</span>
+                            <span id="topbar-notif-badge" class="menu-count hidden">0</span>
+                        </button>
+
+                        <button type="button" class="topbar-menu-item" data-quick-page="profile" role="menuitem">
+                            <span class="menu-item-icon">👤</span>
+                            <span>My Profile</span>
+                        </button>
+
+                        <button type="button" id="topbar-theme-toggle" class="topbar-menu-item" role="menuitem">
+                            <span id="topbar-theme-icon" class="menu-item-icon">🌙</span>
+                            <span id="topbar-theme-label">Dark Mode</span>
+                        </button>
+
+                        <div class="topbar-divider" role="separator"></div>
+
+                        <button type="button" id="logout-btn" class="topbar-menu-item danger-item" role="menuitem">
+                            <span class="menu-item-icon">↪</span>
+                            <span>Sign Out</span>
+                        </button>
                     </div>
                 </div>
             </header>
@@ -220,19 +281,12 @@
 
             <footer class="main-footer">
                 InternTrack · Internship Tracking System
-            </footer>   
-
+            </footer>
         </main>
     </section>
 
-    <!-- QR CODE GENERATION -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-
-    <!-- QR CODE SCANNER -->
     <script src="https://unpkg.com/html5-qrcode"></script>
-
-    <!-- APPLICATION SCRIPT -->
-    <script src="js/app.js"></script>
-
+    <script src="js/app.js?v=9"></script>
 </body>
 </html>

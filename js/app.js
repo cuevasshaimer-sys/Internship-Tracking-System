@@ -1,1983 +1,2272 @@
-
 (() => {
     "use strict";
 
+    const STORAGE_VERSION = "v9_updatable";
+
     const KEYS = {
-        accounts: "internAccounts",
-        oldAccount: "internAccount",
-        session: "internLoggedIn",
-        current: "internCurrentAccountId",
-        theme: "internTheme",
-        attendance: "internAttendanceRecords",
-        requirements: "internRequirements",
-        notifications: "internNotifications",
-        tasks: "internTasks",
-        submissions: "internTaskSubmissions",
-        feedback: "internFeedback"
+        accounts: `internAccounts_${STORAGE_VERSION}`,
+        session: `internLoggedIn_${STORAGE_VERSION}`,
+        current: `internCurrentAccountId_${STORAGE_VERSION}`,
+        remembered: `internRememberedLogin_${STORAGE_VERSION}`,
+        theme: `internTheme_${STORAGE_VERSION}`,
+        assignments: `internAssignments_${STORAGE_VERSION}`,
+        attendance: `internAttendanceRecords_${STORAGE_VERSION}`,
+        notifications: `internNotifications_${STORAGE_VERSION}`,
+        tasks: `internTasks_${STORAGE_VERSION}`,
+        submissions: `internTaskSubmissions_${STORAGE_VERSION}`,
+        evaluations: `internEvaluations_${STORAGE_VERSION}`
     };
 
-    const REQUIRED_HOURS = 486;
-
-    const DEFAULT_TASKS = [
-        {
-            id: "weekly-report",
-            title: "Weekly Accomplishment Report",
-            description: "Summarize the work you completed this week and the skills you practiced.",
-            due: "End of each week"
-        },
-        {
-            id: "journal",
-            title: "Internship Journal",
-            description: "Write what you learned, the tasks you handled, and any challenges you faced.",
-            due: "Every Friday"
-        },
-        {
-            id: "final-report",
-            title: "Final Internship Report",
-            description: "Prepare your final report covering your hours, outputs, and internship experience.",
-            due: "Before internship ends"
-        }
+    const LEGACY_KEYS = [
+        "internAccounts", "internAccount", "internLoggedIn", "internCurrentAccountId",
+        "internAssignments", "internAttendanceRecords", "internNotifications",
+        "internTasks", "internTaskSubmissions", "internEvaluations",
+        "internAccounts_v2_clean", "internLoggedIn_v2_clean", "internCurrentAccountId_v2_clean",
+        "internAssignments_v2_clean", "internAttendanceRecords_v2_clean", "internNotifications_v2_clean",
+        "internTasks_v2_clean", "internTaskSubmissions_v2_clean", "internEvaluations_v2_clean",
+        "internAccounts_v3_clean", "internLoggedIn_v3_clean", "internCurrentAccountId_v3_clean",
+        "internAssignments_v3_clean", "internAttendanceRecords_v3_clean", "internNotifications_v3_clean",
+        "internTasks_v3_clean", "internTaskSubmissions_v3_clean", "internEvaluations_v3_clean"
     ];
+    LEGACY_KEYS.forEach((k) => {
+        try { localStorage.removeItem(k); } catch (_) {}
+    });
+
+    const DEFAULT_REQUIRED_HOURS = 320;
+    const DEFAULT_ACCOUNTS = [];
 
     const roleNames = {
-        student: "Student",
+        student: "Student Intern",
         supervisor: "Supervisor",
-        coordinator: "Coordinator"
+        coordinator: "Internship Coordinator"
     };
 
     const menus = {
         student: [
-            ["dashboard", "⌂", "Dashboard"],
-            ["tasks", "☰", "My Task"],
-            ["attendance", "◷", "Attendance"],
-            ["progress", "↗", "Progress Tracking"],
-            ["evaluation", "★", "Evaluation and Feedback"]
+            { id: "dashboard", label: "Dashboard", icon: "🏠" },
+            { id: "assignment", label: "My Assignment", icon: "🏢" },
+            { id: "tasks", label: "My Tasks", icon: "📝" },
+            { id: "progress", label: "My Progress", icon: "📈" },
+            { id: "evaluation", label: "Evaluations", icon: "⭐" }
         ],
         supervisor: [
-            ["dashboard", "⌂", "Dashboard"],
-            ["interns", "♙", "My Interns"],
-            ["attendance", "◷", "Attendance Records"],
-            ["scan-attendance", "▣", "Scan QR Attendance"],
-            ["requirements", "☷", "Requirements Review"],
-            ["evaluation", "★", "Evaluations"],
-            ["notifications", "♧", "Notifications"]
+            { id: "dashboard", label: "Dashboard", icon: "🏠" },
+            { id: "interns", label: "Assigned Interns", icon: "🎓" },
+            { id: "tasks", label: "Task Management", icon: "📝" },
+            { id: "attendance", label: "Attendance Verification", icon: "⏱️" },
+            { id: "evaluation", label: "Evaluation & Feedback", icon: "⭐" }
         ],
         coordinator: [
-            ["dashboard", "⌂", "Dashboard"],
-            ["students", "♙", "Students"],
-            ["companies", "▤", "Companies"],
-            ["requirements", "☷", "Requirements"],
-            ["attendance", "◷", "Attendance"],
-            ["documents", "▧", "Documents"],
-            ["progress", "↗", "Internship Progress"],
-            ["reports", "▥", "Reports"]
+            { id: "dashboard", label: "Dashboard", icon: "🏠" },
+            { id: "students", label: "Students Record", icon: "🎓" },
+            { id: "supervisors", label: "Supervisor Management", icon: "👔" },
+            { id: "attendance", label: "Attendance Monitoring", icon: "⏱️" },
+            { id: "progress", label: "Progress Monitoring", icon: "📈" },
+            { id: "evaluations", label: "Evaluation Records", icon: "⭐" },
+            { id: "reports", label: "Report Generation", icon: "📄" }
         ]
     };
 
-    const studentTools = [
-        ["profile", "♙", "My Profile"],
-        ["notifications", "♧", "Notifications"]
-    ];
-
-    const subtitles = {
-        dashboard: "Your internship overview.",
-        profile: "View your registered student information.",
-        tasks: "View your assigned tasks and submit your work.",
-        company: "View your internship placement information.",
-        requirements: "Monitor internship requirements and review status.",
-        attendance: "Review attendance and rendered internship hours.",
-        "my-qr": "Show your personal QR code to your supervisor.",
-        "scan-attendance": "Scan a student's QR code to record attendance.",
-        documents: "Manage internship document information.",
-        evaluation: "Review internship evaluation information.",
-        notifications: "View updates and reminders.",
-        interns: "View registered student interns.",
-        students: "Monitor student internship information.",
-        companies: "View registered company information.",
-        progress: "Monitor student internship progress.",
-        reports: "View attendance and internship summaries."
+    const pageMeta = {
+        dashboard: { title: "Dashboard", subtitle: "System overview and summary." },
+        assignment: { title: "My Assignment", subtitle: "View your assigned company, supervisor, and schedule." },
+        students: { title: "Students Record & Company Assignment", subtitle: "Coordinator assignment of student interns to companies and supervisors." },
+        supervisors: { title: "Supervisor Management", subtitle: "Coordinator review and approval of supervisor accounts." },
+        interns: { title: "Assigned Interns", subtitle: "View student interns assigned to you." },
+        tasks: { title: "Tasks", subtitle: "Supervisor task assignment, updates, and intern submissions." },
+        attendance: { title: "Attendance", subtitle: "Track and verify internship attendance and hours." },
+        progress: { title: "Progress Monitoring", subtitle: "Monitor internship hours, attendance logs, and completion." },
+        evaluation: { title: "Evaluation & Feedback", subtitle: "Supervisor intern evaluations, feedback, and updates." },
+        evaluations: { title: "Evaluation Records & Feedback", subtitle: "Monitor supervisor evaluations, ratings, and feedback." },
+        reports: { title: "Report Generation", subtitle: "Generate, print, and export internship reports." },
+        notifications: { title: "Notifications", subtitle: "Recent updates and activity alerts." },
+        profile: { title: "My Profile", subtitle: "Update your account details and view your Student QR ID." }
     };
 
-    const $ = (selector) => document.querySelector(selector);
-
     let currentPage = "dashboard";
-    let activeScanner = null;
-    let scannerStarting = false;
-    let scannerBusy = false;
-    let scannerStartButton = null;
-    let scannerStopButton = null;
+    let isBrandMenuExpanded = false;
+    let editingTaskId = null;
+    let editingEvalId = null;
 
-    function readJSON(key, fallback = []) {
+    let studentFilterSearch = "";
+    let studentFilterCompany = "all";
+    let attendanceFilterSearch = "";
+    let attendanceFilterStatus = "all";
+    let progressFilterSearch = "";
+    let progressFilterStatus = "all";
+    let evalFilterSearch = "";
+    let evalFilterRating = "all";
+    let reportType = "assignments";
+    let reportSearch = "";
+
+    const $ = (id) => document.getElementById(id);
+
+    const loginPage = $("login-page");
+    const registerPage = $("register-page");
+    const forgotPage = $("forgot-page");
+    const systemPage = $("system-page");
+
+    const loginForm = $("login-form");
+    const registerForm = $("register-form");
+    const forgotForm = $("forgot-form");
+    const toggleLoginPasswordBtn = $("toggle-login-password");
+    const rememberMeCheckbox = $("remember-me");
+
+    const loginMessage = $("login-message");
+    const registerMessage = $("register-message");
+    const forgotMessage = $("forgot-message");
+
+    const sidebar = $("sidebar");
+    const sidebarArrowToggle = $("sidebar-arrow-toggle");
+    const sidebarBrandText = $("sidebar-brand-text");
+    const sidebarExpandedPanel = $("sidebar-expanded-panel");
+    const sidebarNav = $("sidebar-nav");
+    const sidebarRoleSubtitle = $("sidebar-role-subtitle");
+    const contentArea = $("content");
+    const pageTitle = $("page-title");
+    const pageSubtitle = $("page-subtitle");
+
+    const headerAvatar = $("header-avatar");
+    const headerName = $("header-name");
+    const headerId = $("header-id");
+    const headerNotifBadge = $("header-notif-badge");
+
+    const topbarUserWrap = $("topbar-user-wrap");
+    const topbarUserToggle = $("topbar-user-toggle");
+    const topbarQuickMenu = $("topbar-quick-menu");
+    const topbarNotifBadge = $("topbar-notif-badge");
+    const topbarThemeToggle = $("topbar-theme-toggle");
+    const topbarThemeIcon = $("topbar-theme-icon");
+    const topbarThemeLabel = $("topbar-theme-label");
+
+    function readJSON(key, fallback) {
         try {
-            const value = localStorage.getItem(key);
-            return value ? JSON.parse(value) : fallback;
-        } catch (error) {
-            console.error("Unable to read local data:", error);
+            const raw = localStorage.getItem(key);
+            return raw ? JSON.parse(raw) : fallback;
+        } catch (_) {
             return fallback;
         }
     }
 
-    function saveJSON(key, value) {
-        localStorage.setItem(key, JSON.stringify(value));
+    function writeJSON(key, value) {
+        try {
+            localStorage.setItem(key, JSON.stringify(value));
+        } catch (_) {}
     }
 
-    function loadAccounts() {
-        let accounts = readJSON(KEYS.accounts, []);
-
-        if (!Array.isArray(accounts)) {
-            accounts = [];
-        }
-
-        const oldAccount = readJSON(KEYS.oldAccount, null);
-
-        if (oldAccount && typeof oldAccount === "object") {
-            const oldId = String(oldAccount.id || oldAccount.idNumber || "");
-            const exists = accounts.some(account => String(account.id) === oldId);
-
-            if (oldId && !exists) {
-                accounts.push({
-                    name: oldAccount.name || oldAccount.fullName || "Student",
-                    id: oldId,
-                    role: oldAccount.role || "student",
-                    password: oldAccount.password || ""
-                });
-                saveJSON(KEYS.accounts, accounts);
-            }
-        }
-
-        return accounts;
+    function escapeHTML(str) {
+        return String(str ?? "")
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#39;");
     }
 
-    function saveAccounts(accounts) {
-        saveJSON(KEYS.accounts, accounts);
+    function getInitials(name) {
+        const parts = String(name || "IT").trim().split(/\s+/);
+        if (parts.length >= 2) {
+            return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+        }
+        return String(name || "IT").slice(0, 2).toUpperCase();
+    }
+
+    function formatDateTime(iso) {
+        if (!iso) return "-";
+        const d = new Date(iso);
+        if (Number.isNaN(d.getTime())) return iso;
+        return d.toLocaleString("en-US", {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+            hour: "numeric",
+            minute: "2-digit"
+        });
+    }
+
+    function formatDateOnly(dateStr) {
+        if (!dateStr) return "-";
+        const d = new Date(dateStr + "T00:00:00");
+        if (Number.isNaN(d.getTime())) return dateStr;
+        return d.toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+            year: "numeric"
+        });
+    }
+
+    function formatHours(val) {
+        const num = Number(val) || 0;
+        return num.toFixed(2);
+    }
+
+    function getAccounts() {
+        const list = readJSON(KEYS.accounts, null);
+        if (!Array.isArray(list)) {
+            writeJSON(KEYS.accounts, DEFAULT_ACCOUNTS);
+            return [...DEFAULT_ACCOUNTS];
+        }
+        return list;
+    }
+
+    function saveAccounts(list) {
+        writeJSON(KEYS.accounts, list);
+    }
+
+    function getAssignments() {
+        const list = readJSON(KEYS.assignments, []);
+        return Array.isArray(list) ? list : [];
+    }
+
+    function saveAssignments(list) {
+        writeJSON(KEYS.assignments, list);
     }
 
     function getAttendance() {
-        const records = readJSON(KEYS.attendance, []);
-        return Array.isArray(records) ? records : [];
+        const list = readJSON(KEYS.attendance, []);
+        return Array.isArray(list) ? list : [];
     }
 
-    function saveAttendance(records) {
-        saveJSON(KEYS.attendance, records);
+    function saveAttendance(list) {
+        writeJSON(KEYS.attendance, list);
     }
 
-    function getCurrentAccount() {
-        const id = localStorage.getItem(KEYS.current);
-        if (!id) return null;
-
-        return loadAccounts().find(account => String(account.id) === String(id)) || null;
+    function getNotifications() {
+        const list = readJSON(KEYS.notifications, []);
+        return Array.isArray(list) ? list : [];
     }
 
-    function getRole(account = getCurrentAccount()) {
-        return account && menus[account.role] ? account.role : null;
-    }
-
-    function showOnly(pageId) {
-        ["login-page", "register-page", "forgot-page", "system-page"].forEach(id => {
-            const element = document.getElementById(id);
-            if (element) element.classList.toggle("hidden", id !== pageId);
-        });
-    }
-
-    function setMessage(selector, message, type = "error") {
-        const element = $(selector);
-        if (!element) return;
-
-        element.textContent = message;
-        element.className = "form-message " + type;
-    }
-
-    function clearMessage(selector) {
-        const element = $(selector);
-        if (element) {
-            element.textContent = "";
-            element.className = "form-message";
-        }
-    }
-
-    function escapeHTML(value) {
-        return String(value ?? "").replace(/[&<>"']/g, character => ({
-            "&": "&amp;",
-            "<": "&lt;",
-            ">": "&gt;",
-            '"': "&quot;",
-            "'": "&#039;"
-        })[character]);
-    }
-
-    function initials(name) {
-        return String(name || "IT")
-            .trim()
-            .split(/\s+/)
-            .slice(0, 2)
-            .map(part => part.charAt(0))
-            .join("")
-            .toUpperCase();
-    }
-
-    function formatDate(dateString) {
-        if (!dateString) return "—";
-
-        const date = new Date(dateString + "T00:00:00");
-        if (Number.isNaN(date.getTime())) return escapeHTML(dateString);
-
-        return date.toLocaleDateString("en-PH", {
-            year: "numeric",
-            month: "short",
-            day: "numeric"
-        });
-    }
-
-    function todayString() {
-        const now = new Date();
-        const year = now.getFullYear();
-        const month = String(now.getMonth() + 1).padStart(2, "0");
-        const day = String(now.getDate()).padStart(2, "0");
-
-        return `${year}-${month}-${day}`;
-    }
-
-    function timeString(date = new Date()) {
-        return date.toLocaleTimeString("en-PH", {
-            hour: "2-digit",
-            minute: "2-digit",
-            hour12: true
-        });
-    }
-
-    function parseTime(time) {
-        if (!time) return null;
-
-        const match = String(time).match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
-        if (!match) return null;
-
-        let hour = Number(match[1]);
-        const minute = Number(match[2]);
-        const meridiem = match[3].toUpperCase();
-
-        if (hour < 1 || hour > 12 || minute < 0 || minute > 59) return null;
-
-        if (meridiem === "AM" && hour === 12) hour = 0;
-        if (meridiem === "PM" && hour !== 12) hour += 12;
-
-        return hour * 60 + minute;
-    }
-
-    function hoursBetween(timeIn, timeOut) {
-        const start = parseTime(timeIn);
-        const end = parseTime(timeOut);
-
-        if (start === null || end === null || end < start) return 0;
-        return Number(((end - start) / 60).toFixed(2));
-    }
-
-    function totalHours(records) {
-        return records.reduce((sum, record) => sum + Number(record.hours || 0), 0);
-    }
-
-    function statusBadge(status) {
-        let type = "neutral";
-
-        if (["Completed", "Present", "Approved", "Time Out Recorded", "Submitted", "Active"].includes(status)) {
-            type = "success";
-        } else if (["Pending", "In Progress", "Timed In"].includes(status)) {
-            type = "warning";
-        } else if (["Rejected", "Absent"].includes(status)) {
-            type = "danger";
-        }
-
-        return `<span class="badge ${type}">${escapeHTML(status)}</span>`;
-    }
-
-    function emptyState(title, description, icon = "▧") {
-        return `
-            <div class="empty-state">
-                <div class="empty-icon">${icon}</div>
-                <h3>${escapeHTML(title)}</h3>
-                <p>${escapeHTML(description)}</p>
-            </div>`;
-    }
-
-    function statCard(label, value, icon, note = "") {
-        return `
-            <article class="stat-card">
-                <div class="stat-top">
-                    <span class="stat-label">${escapeHTML(label)}</span>
-                    <span class="stat-icon">${icon}</span>
-                </div>
-                <div class="stat-value">${escapeHTML(value)}</div>
-                <div class="stat-note">${escapeHTML(note)}</div>
-            </article>`;
-    }
-
-    function panel(title, content, note = "") {
-        return `
-            <section class="panel">
-                <div class="panel-header">
-                    <div>
-                        <h3>${escapeHTML(title)}</h3>
-                        ${note ? `<p>${escapeHTML(note)}</p>` : ""}
-                    </div>
-                </div>
-                ${content}
-            </section>`;
-    }
-
-    function table(headers, rows) {
-        return `
-            <div class="table-wrap">
-                <table>
-                    <thead><tr>${headers.map(header => `<th>${escapeHTML(header)}</th>`).join("")}</tr></thead>
-                    <tbody>${rows.length ? rows.map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join("")}</tr>`).join("") : `
-                        <tr><td colspan="${headers.length}">
-                            ${emptyState("No records yet", "Records will appear here when available.")}
-                        </td></tr>`}
-                    </tbody>
-                </table>
-            </div>`;
-    }
-
-    function buildNavigation(role) {
-        const nav = $("#sidebar-nav");
-        nav.innerHTML = "";
-
-        (menus[role] || []).forEach(([id, icon, label]) => {
-            const button = document.createElement("button");
-            button.type = "button";
-            button.className = "menu-btn";
-            button.dataset.page = id;
-            button.innerHTML = `
-                <span class="menu-icon">${icon}</span>
-                <span>${escapeHTML(label)}</span>`;
-
-            button.addEventListener("click", () => showPage(id));
-            nav.appendChild(button);
-        });
-    }
-
-    function applyTheme() {
-        const savedTheme = localStorage.getItem(KEYS.theme) || "light";
-        const theme = savedTheme === "dark" ? "dark" : "light";
-        const nextLabel = theme === "dark" ? "Light Mode" : "Dark Mode";
-        const nextIcon = theme === "dark" ? "☾" : "☀";
-
-        document.documentElement.dataset.theme = theme;
-
-        const icon = $("#theme-icon");
-        const label = $("#theme-label");
-        const studentIcon = $("#student-theme-icon");
-        const studentLabel = $("#student-theme-label");
-        const studentToggle = $("#student-theme-toggle");
-
-        if (icon) icon.textContent = nextIcon;
-        if (label) label.textContent = nextLabel;
-        if (studentIcon) studentIcon.textContent = nextIcon;
-        if (studentLabel) studentLabel.textContent = nextLabel;
-        if (studentToggle) studentToggle.title = nextLabel;
-    }
-
-    function toggleTheme() {
-        const nextTheme = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
-        localStorage.setItem(KEYS.theme, nextTheme);
-        applyTheme();
-    }
-
-    function setRoleChrome(role) {
-        const isStudent = role === "student";
-        document.body.classList.toggle("student-session", isStudent);
-
-        const arrow = $("#sidebar-user-arrow");
-        const menu = $("#student-quick-menu");
-        const topUser = $(".topbar-user");
-        const theme = $("#theme-toggle");
-        const logout = $("#logout-btn");
-        const toggle = $("#sidebar-user-toggle");
-
-        if (arrow) arrow.classList.toggle("hidden", !isStudent);
-        if (menu) menu.classList.add("hidden");
-        if (topUser) topUser.classList.toggle("hidden", isStudent);
-        if (theme) theme.classList.toggle("hidden", isStudent);
-
-        if (logout) {
-            logout.innerHTML = isStudent
-                ? "<span>↪</span> Log Out"
-                : "<span>↪</span> Sign Out";
-        }
-
-        if (toggle) toggle.setAttribute("aria-expanded", "false");
-    }
-
-    function toggleStudentMenu() {
-        if (!document.body.classList.contains("student-session")) return;
-
-        const menu = $("#student-quick-menu");
-        const toggle = $("#sidebar-user-toggle");
-        if (!menu || !toggle) return;
-
-        const open = menu.classList.contains("hidden");
-        menu.classList.toggle("hidden", !open);
-        toggle.setAttribute("aria-expanded", open ? "true" : "false");
-    }
-
-    function closeStudentMenu() {
-        const menu = $("#student-quick-menu");
-        const toggle = $("#sidebar-user-toggle");
-
-        if (menu) menu.classList.add("hidden");
-        if (toggle) toggle.setAttribute("aria-expanded", "false");
-    }
-
-    function updateAccountHeader(account) {
-        const role = getRole(account);
-
-        $("#sidebar-name").textContent = account.name;
-        $("#sidebar-role").textContent = roleNames[role] || roleNames.student;
-
-        if ($("#sidebar-id")) {
-            $("#sidebar-id").textContent = `ID ${account.id}`;
-        }
-
-        $("#sidebar-avatar").textContent = initials(account.name);
-
-        const headerAvatar = $("#header-avatar");
-        const headerName = $("#header-name");
-        const headerId = $("#header-id");
-
-        if (headerAvatar) headerAvatar.textContent = initials(account.name);
-        if (headerName) headerName.textContent = account.name;
-        if (headerId) headerId.textContent = `ID ${account.id}`;
-
-        const dateEl = $("#header-date");
-
-        if (dateEl) {
-            dateEl.textContent = new Date().toLocaleDateString("en-PH", {
-                weekday: "short",
-                month: "short",
-                day: "numeric",
-                year: "numeric"
-            });
-        }
-    }
-
-    function signIn(account) {
-        localStorage.setItem(KEYS.current, String(account.id));
-        localStorage.setItem(KEYS.session, "true");
-
-        updateAccountHeader(account);
-        setRoleChrome(account.role);
-        buildNavigation(account.role);
-        applyTheme();
-        showOnly("system-page");
-        showPage("dashboard");
-    }
-
-    function signOut() {
-        stopScanner();
-        localStorage.removeItem(KEYS.session);
-        localStorage.removeItem(KEYS.current);
-        currentPage = "dashboard";
-        document.body.classList.remove("student-session");
-        setRoleChrome("supervisor");
-        showOnly("login-page");
-
-        if ($("#login-form")) $("#login-form").reset();
-        clearMessage("#login-message");
-    }
-
-    function showPage(pageId) {
-        const account = getCurrentAccount();
-        const role = getRole(account);
-
-        if (!account || !role) {
-            signOut();
-            return;
-        }
-
-        const pageList = [
-            ...(menus[role] || []),
-            ...(role === "student" ? studentTools : [])
-        ];
-
-        const allowedPages = pageList.map(item => item[0]);
-
-        if (!allowedPages.includes(pageId)) {
-            pageId = "dashboard";
-        }
-
-        if (currentPage === "scan-attendance" && pageId !== "scan-attendance") {
-            stopScanner();
-        }
-
-        currentPage = pageId;
-        closeStudentMenu();
-
-        document.querySelectorAll(".menu-btn").forEach(button => {
-            button.classList.toggle("active", button.dataset.page === pageId);
-        });
-
-        const menuItem = [
-            ...(menus[role] || []),
-            ...(role === "student" ? studentTools : [])
-        ].find(item => item[0] === pageId);
-
-        $("#page-title").textContent = menuItem ? menuItem[2] : "Dashboard";
-
-        const studentSubtitles = {
-            attendance: "Show your QR code, check rendered hours, and review attendance records.",
-            progress: "Track your rendered hours and internship progress.",
-            evaluation: "Review your evaluation and feedback."
-        };
-
-        $("#page-subtitle").textContent =
-            (role === "student" && studentSubtitles[pageId]) ||
-            subtitles[pageId] ||
-            "Manage internship information.";
-
-        const content = $("#content");
-        content.classList.remove("content-refresh");
-        content.innerHTML = renderPage(pageId, account, role);
-        void content.offsetWidth;
-        content.classList.add("content-refresh");
-
-        bindPageActions(pageId, account, role);
-    }
-
-    function renderPage(pageId, account, role) {
-        const renderers = {
-            dashboard: renderDashboard,
-            tasks: renderTasks,
-            profile: renderProfile,
-            company: renderCompany,
-            requirements: renderRequirements,
-            attendance: renderAttendance,
-            "my-qr": renderMyQR,
-            "scan-attendance": renderScanner,
-            documents: renderDocuments,
-            evaluation: renderEvaluation,
-            notifications: renderNotifications,
-            interns: renderInterns,
-            students: renderStudents,
-            companies: renderCompanies,
-            progress: renderProgress,
-            reports: renderReports
-        };
-
-        const renderer = renderers[pageId];
-
-        return renderer
-            ? renderer(account, role)
-            : emptyState("Page not found", "Choose a page from the sidebar.");
-    }
-
-    function visibleAttendance(account, role) {
-        const records = getAttendance();
-
-        if (role === "student") {
-            return records.filter(record => String(record.studentId) === String(account.id));
-        }
-
-        return records;
-    }
-
-    // UPDATED STUDENT DASHBOARD
-    function renderDashboard(account, role) {
-        const allAccounts = loadAccounts();
-        const students = allAccounts.filter(item => item.role === "student");
-        const attendance = getAttendance();
-        const todayRecords = attendance.filter(record => record.date === todayString());
-        const myRecords = attendance.filter(record => String(record.studentId) === String(account.id));
-
-        let cards = "";
-        let intro = "";
-
-        if (role === "student") {
-            const hours = totalHours(myRecords);
-            const tasks = getTasks();
-            const submitted = getSubmissions(account).length;
-
-            cards = [
-                statCard("Attendance", myRecords.filter(item => item.timeOut).length, "◷", "Completed attendance"),
-                statCard("Records", myRecords.length, "▧", "Attendance records"),
-                statCard("Rendered Hours", hours.toFixed(2), "⌛", `of ${REQUIRED_HOURS} required hours`),
-                statCard("Tasks", `${submitted}/${tasks.length}`, "☰", "Submitted tasks")
-            ].join("");
-
-            intro = "Your attendance, records, rendered hours, tasks, and internship progress.";
-
-        } else if (role === "supervisor") {
-            cards = [
-                statCard("Registered Students", students.length, "♙", "Student accounts in this demo"),
-                statCard("Today's Attendance", todayRecords.length, "◷", "Records for today"),
-                statCard("Completed Time Outs", todayRecords.filter(item => item.timeOut).length, "✓", "Attendance completed"),
-                statCard("Open Attendance", todayRecords.filter(item => !item.timeOut).length, "⌛", "Awaiting time out")
-            ].join("");
-
-            intro = "Use the QR scanner to record your interns' time in and time out.";
-
-        } else {
-            cards = [
-                statCard("Registered Students", students.length, "♙", "Student accounts"),
-                statCard("Supervisors", allAccounts.filter(item => item.role === "supervisor").length, "♧", "Supervisor accounts"),
-                statCard("Attendance Records", attendance.length, "◷", "All saved records"),
-                statCard("Rendered Hours", totalHours(attendance).toFixed(2), "⌛", "Completed attendance hours")
-            ].join("");
-
-            intro = "Monitor registered accounts and internship attendance information.";
-        }
-
-        // Recent Attendance is hidden only on the Student Dashboard.
-        let recentPanel = "";
-
-        if (role !== "student") {
-            const recentRecords = visibleAttendance(account, role).slice(-5).reverse();
-
-            const recentRows = recentRecords.map(record => [
-                escapeHTML(record.studentName),
-                escapeHTML(formatDate(record.date)),
-                escapeHTML(record.timeIn || "—"),
-                escapeHTML(record.timeOut || "—"),
-                `${Number(record.hours || 0).toFixed(2)} hrs`
-            ]);
-
-            recentPanel = panel(
-                "Recent Attendance Records",
-                table(["Student", "Date", "Time In", "Time Out", "Hours"], recentRows),
-                "Latest attendance records saved in this browser."
-            );
-        }
-
-        const studentExtras = role === "student"
-            ? `${internshipInfoPanel(account)}${internshipProgressPanel(account)}`
-            : "";
-
-        return `
-            <div class="welcome-banner">
-                <p class="welcome-kicker">Dashboard</p>
-                <h2>Hello, ${escapeHTML(account.name)}</h2>
-                <p>${escapeHTML(intro)}</p>
-            </div>
-
-            <div class="card-grid">
-                ${cards}
-            </div>
-
-            ${recentPanel}
-            ${studentExtras}
-        `;
+    function saveNotifications(list) {
+        writeJSON(KEYS.notifications, list);
     }
 
     function getTasks() {
-        const tasks = readJSON(KEYS.tasks, []);
+        const list = readJSON(KEYS.tasks, []);
+        return Array.isArray(list) ? list : [];
+    }
 
-        if (!Array.isArray(tasks) || !tasks.length) {
-            saveJSON(KEYS.tasks, DEFAULT_TASKS);
-            return DEFAULT_TASKS.slice();
+    function saveTasks(list) {
+        writeJSON(KEYS.tasks, list);
+    }
+
+    function getSubmissions() {
+        const list = readJSON(KEYS.submissions, []);
+        return Array.isArray(list) ? list : [];
+    }
+
+    function saveSubmissions(list) {
+        writeJSON(KEYS.submissions, list);
+    }
+
+    function getEvaluations() {
+        const list = readJSON(KEYS.evaluations, []);
+        return Array.isArray(list) ? list : [];
+    }
+
+    function saveEvaluations(list) {
+        writeJSON(KEYS.evaluations, list);
+    }
+
+    function getCurrentAccount() {
+        const currentId = localStorage.getItem(KEYS.current);
+        if (!currentId) return null;
+        return getAccounts().find((acc) => acc.id === currentId) || null;
+    }
+
+    function syncTopbarAccount(account) {
+        sidebarRoleSubtitle.textContent = roleNames[account.role] || "Student Intern";
+        headerName.textContent = account.name;
+        headerId.textContent = `${roleNames[account.role]} · ${account.idNumber || account.email}`;
+        headerAvatar.textContent = getInitials(account.name);
+        updateUnreadBadge(account.id);
+    }
+
+    function pushNotification(targetUserId, title, message) {
+        const list = getNotifications();
+        list.unshift({
+            id: "notif_" + Date.now() + "_" + Math.random().toString(36).slice(2, 7),
+            userId: targetUserId,
+            title,
+            message,
+            createdAt: new Date().toISOString(),
+            read: false
+        });
+        saveNotifications(list);
+        const currentAcc = getCurrentAccount();
+        if (currentAcc && currentAcc.id === targetUserId) {
+            updateUnreadBadge(currentAcc.id);
+        }
+    }
+
+    function getActiveAssignmentForStudent(studentId) {
+        return getAssignments().find((a) => a.studentId === studentId && a.status === "Active") || null;
+    }
+
+    function getAssignedStudentsForSupervisor(supervisorId) {
+        const studentIds = getAssignments()
+            .filter((a) => a.supervisorId === supervisorId && a.status === "Active")
+            .map((a) => a.studentId);
+        return getAccounts().filter((a) => a.role === "student" && studentIds.includes(a.id));
+    }
+
+    function getStudentRenderedHours(studentId) {
+        return getAttendance()
+            .filter((r) => r.studentId === studentId && r.status === "Verified")
+            .reduce((sum, r) => sum + (Number(r.hours) || 0), 0);
+    }
+
+    function syncBrandSidebarState() {
+        if (sidebarBrandText) {
+            sidebarBrandText.classList.toggle("hidden", !isBrandMenuExpanded);
+        }
+        if (sidebarExpandedPanel) {
+            sidebarExpandedPanel.classList.toggle("hidden", !isBrandMenuExpanded);
+        }
+        if (sidebar) {
+            sidebar.classList.toggle("collapsed-brand", !isBrandMenuExpanded);
+        }
+        if (sidebarArrowToggle) {
+            sidebarArrowToggle.setAttribute("aria-expanded", isBrandMenuExpanded ? "true" : "false");
+        }
+    }
+
+    // THEME
+    function applyTheme(theme) {
+        const mode = theme === "dark" ? "dark" : "light";
+        document.documentElement.setAttribute("data-theme", mode);
+        try {
+            localStorage.setItem(KEYS.theme, mode);
+        } catch (_) {}
+        if (topbarThemeIcon && topbarThemeLabel) {
+            if (mode === "dark") {
+                topbarThemeIcon.textContent = "☀️";
+                topbarThemeLabel.textContent = "Light Mode";
+            } else {
+                topbarThemeIcon.textContent = "🌙";
+                topbarThemeLabel.textContent = "Dark Mode";
+            }
+        }
+    }
+
+    function toggleTheme() {
+        const current = document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
+        applyTheme(current === "dark" ? "light" : "dark");
+    }
+
+    // TOPBAR QUICK MENU & NOTIFICATION BADGE
+    function setQuickMenuOpen(open) {
+        if (!topbarQuickMenu || !topbarUserToggle) return;
+        topbarQuickMenu.classList.toggle("hidden", !open);
+        topbarUserToggle.setAttribute("aria-expanded", open ? "true" : "false");
+    }
+
+    function updateUnreadBadge(userId) {
+        const unread = getNotifications().filter((n) => n.userId === userId && !n.read).length;
+        if (headerNotifBadge) {
+            headerNotifBadge.textContent = String(unread);
+            headerNotifBadge.classList.toggle("hidden", unread === 0);
+        }
+        if (topbarNotifBadge) {
+            topbarNotifBadge.textContent = String(unread);
+            topbarNotifBadge.classList.toggle("hidden", unread === 0);
+        }
+    }
+
+    // PAGE SWITCHING
+    function showAuthPage(pageName) {
+        setQuickMenuOpen(false);
+        loginPage.classList.toggle("hidden", pageName !== "login");
+        registerPage.classList.toggle("hidden", pageName !== "register");
+        forgotPage.classList.toggle("hidden", pageName !== "forgot");
+        systemPage.classList.add("hidden");
+        loginMessage.textContent = "";
+        registerMessage.textContent = "";
+        forgotMessage.textContent = "";
+    }
+
+    function showSystemPage(account) {
+        setQuickMenuOpen(false);
+        loginPage.classList.add("hidden");
+        registerPage.classList.add("hidden");
+        forgotPage.classList.add("hidden");
+        systemPage.classList.remove("hidden");
+
+        syncTopbarAccount(account);
+        syncBrandSidebarState();
+        renderSidebar(account.role);
+
+        const allowedPages = (menus[account.role] || []).map((m) => m.id);
+        if (!allowedPages.includes(currentPage) && !["notifications", "profile"].includes(currentPage)) {
+            currentPage = "dashboard";
+        }
+        renderPage(currentPage, account);
+    }
+
+    function renderSidebar(role) {
+        const items = menus[role] || [];
+        sidebarNav.innerHTML = items
+            .map(
+                (item) => `
+                <button type="button" class="menu-btn ${item.id === currentPage ? "active" : ""}" data-page="${item.id}">
+                    <span class="menu-icon">${item.icon}</span>
+                    <span>${escapeHTML(item.label)}</span>
+                </button>
+            `
+            )
+            .join("");
+
+        sidebarNav.querySelectorAll(".menu-btn").forEach((btn) => {
+            btn.addEventListener("click", () => {
+                const acc = getCurrentAccount();
+                if (!acc) return;
+                currentPage = btn.getAttribute("data-page");
+                editingTaskId = null;
+                editingEvalId = null;
+                renderSidebar(acc.role);
+                renderPage(currentPage, acc);
+            });
+        });
+    }
+
+    if (sidebarArrowToggle) {
+        sidebarArrowToggle.addEventListener("click", () => {
+            isBrandMenuExpanded = !isBrandMenuExpanded;
+            syncBrandSidebarState();
+        });
+    }
+
+    // REGISTER ROLE FIELDS
+    function updateRegisterRoleFields() {
+        const role = $("register-role").value;
+        const coordBox = $("coordinator-register-fields");
+        const studentBox = $("student-register-fields");
+        const supBox = $("supervisor-register-fields");
+
+        const coordIdInput = $("register-coord-id");
+        const studentIdInput = $("register-id");
+        const supIdInput = $("register-sup-id");
+        const supCompanyInput = $("register-company");
+
+        coordBox.classList.toggle("hidden", role !== "coordinator");
+        studentBox.classList.toggle("hidden", role !== "student");
+        supBox.classList.toggle("hidden", role !== "supervisor");
+
+        coordIdInput.required = role === "coordinator";
+        studentIdInput.required = role === "student";
+        supIdInput.required = role === "supervisor";
+        supCompanyInput.required = role === "supervisor";
+    }
+
+    if (toggleLoginPasswordBtn) {
+        toggleLoginPasswordBtn.addEventListener("click", () => {
+            const passInput = $("login-password");
+            if (!passInput) return;
+            const isHidden = passInput.type === "password";
+            passInput.type = isHidden ? "text" : "password";
+            toggleLoginPasswordBtn.textContent = isHidden ? "Hide" : "Show";
+        });
+    }
+
+    // AUTH EVENTS
+    $("show-register").addEventListener("click", () => {
+        updateRegisterRoleFields();
+        showAuthPage("register");
+    });
+
+    $("show-login").addEventListener("click", () => showAuthPage("login"));
+    $("show-forgot").addEventListener("click", () => showAuthPage("forgot"));
+    $("forgot-back").addEventListener("click", () => showAuthPage("login"));
+    $("register-role").addEventListener("change", updateRegisterRoleFields);
+
+    registerForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+        registerMessage.className = "form-message";
+
+        const role = $("register-role").value;
+        const name = $("register-name").value.trim();
+        const email = $("register-email").value.trim().toLowerCase();
+        const password = $("register-password").value;
+        const confirm = $("register-confirm").value;
+
+        let idNumber = "";
+        let program = "";
+        let yearLevel = "";
+        let company = "";
+        let position = "";
+        let contact = "";
+        let address = "";
+
+        if (role === "coordinator") {
+            idNumber = $("register-coord-id").value.trim();
+            contact = $("register-coord-contact").value.trim();
+        } else if (role === "student") {
+            idNumber = $("register-id").value.trim();
+            program = $("register-program").value.trim();
+            yearLevel = $("register-year").value;
+            contact = $("register-contact").value.trim();
+            address = $("register-address").value.trim();
+        } else if (role === "supervisor") {
+            idNumber = $("register-sup-id").value.trim();
+            company = $("register-company").value.trim();
+            position = $("register-position").value.trim();
+            contact = $("register-sup-contact").value.trim();
+            address = $("register-sup-address").value.trim();
         }
 
-        return tasks;
-    }
-
-    function getSubmissions(account) {
-        const records = readJSON(KEYS.submissions, []);
-
-        if (!Array.isArray(records)) return [];
-
-        return records.filter(item => String(item.studentId) === String(account.id));
-    }
-
-    function progressMarkup(hours) {
-        const percent = Math.max(0, Math.min(100, (hours / REQUIRED_HOURS) * 100));
-
-        return `
-            <div class="progress-block">
-                <div class="progress-meta">
-                    <strong>${hours.toFixed(2)} / ${REQUIRED_HOURS} hrs</strong>
-                    <span>${percent.toFixed(0)}%</span>
-                </div>
-
-                <div class="progress-track" aria-hidden="true">
-                    <div class="progress-fill" style="width:${percent.toFixed(2)}%"></div>
-                </div>
-            </div>`;
-    }
-
-    // UPDATED BRIEF INTERNSHIP INFO
-    function internshipInfoPanel(account) {
-        const company = account.company || "Not yet assigned";
-
-        return panel(
-            "Brief Internship Info",
-            `
-            <div class="card-grid">
-                ${statCard("Student Name", account.name, "♙", "Registered student")}
-                ${statCard("ID Number", account.id, "▧", "Student identification")}
-                ${statCard("Company", company, "▤", "Internship placement")}
-                ${statCard("Required Hours", `${REQUIRED_HOURS} hrs`, "⌛", "Total required hours")}
-            </div>
-            `
-        );
-    }
-
-    // UPDATED INTERNSHIP PROGRESS
-    function internshipProgressPanel(account) {
-        const hours = totalHours(visibleAttendance(account, "student"));
-        const percent = Math.max(0, Math.min(100, (hours / REQUIRED_HOURS) * 100));
-        const remaining = Math.max(0, REQUIRED_HOURS - hours);
-
-        const company = account.company || "";
-
-        const status = !company
-            ? "Not yet assigned"
-            : hours >= REQUIRED_HOURS
-                ? "Completed"
-                : hours > 0
-                    ? "In Progress"
-                    : "Pending";
-
-        return panel(
-            "Internship Progress",
-            `
-            ${progressMarkup(hours)}
-
-            <div class="card-grid" style="margin-top: 20px;">
-                ${statCard("Progress", `${hours.toFixed(2)} / ${REQUIRED_HOURS} hrs`, "↗", `${percent.toFixed(0)}% completed`)}
-                ${statCard("Rendered Hours", `${hours.toFixed(2)} hrs`, "⌛", "Total completed hours")}
-                ${statCard("Remaining", `${remaining.toFixed(2)} hrs`, "◷", "Hours left to complete")}
-                ${statCard("Status", status, "▧", "Internship placement status")}
-            </div>
-            `
-        );
-    }
-
-    function renderTasks(account, role) {
-        if (role !== "student") {
-            return emptyState("Access restricted", "Only student accounts can view and submit tasks.");
+        if (!name || !email || !idNumber) {
+            registerMessage.classList.add("error");
+            registerMessage.textContent = "Please fill in all required fields.";
+            return;
+        }
+        if (password.length < 6) {
+            registerMessage.classList.add("error");
+            registerMessage.textContent = "Password must be at least 6 characters.";
+            return;
+        }
+        if (password !== confirm) {
+            registerMessage.classList.add("error");
+            registerMessage.textContent = "Passwords do not match.";
+            return;
         }
 
-        const submissions = getSubmissions(account);
-
-        const cards = getTasks().map(task => {
-            const submission = submissions.find(item => item.taskId === task.id);
-            const status = submission ? "Submitted" : "Pending";
-
-            return `
-                <article class="task-card">
-                    <div class="task-card-top">
-                        <div>
-                            <h3>${escapeHTML(task.title)}</h3>
-                            <p>${escapeHTML(task.description)}</p>
-                        </div>
-
-                        ${statusBadge(status)}
-                    </div>
-
-                    <p class="task-due">Due: ${escapeHTML(task.due || "No due date")}</p>
-
-                    ${submission ? `
-                        <div class="notice">
-                            <strong>Your submission</strong>
-                            <p>${escapeHTML(submission.note)}</p>
-                            <p class="muted">Submitted ${escapeHTML(formatDate(submission.date))}</p>
-                        </div>
-                    ` : `
-                        <form class="task-submit-form" data-task-id="${escapeHTML(task.id)}">
-                            <label for="task-note-${escapeHTML(task.id)}">Submission</label>
-                            <textarea id="task-note-${escapeHTML(task.id)}" required placeholder="Write your task submission"></textarea>
-                            <button class="primary-btn" type="submit">Submit</button>
-                        </form>
-                    `}
-                </article>`;
-        }).join("");
-
-        return panel(
-            "My Tasks",
-            `<div class="task-list">${cards}</div>`,
-            "View each task, then submit your work."
+        const accounts = getAccounts();
+        const exists = accounts.some(
+            (a) => a.email.toLowerCase() === email || a.idNumber.toLowerCase() === idNumber.toLowerCase()
         );
-    }
+        if (exists) {
+            registerMessage.classList.add("error");
+            registerMessage.textContent = "An account with that ID number or email already exists.";
+            return;
+        }
 
-    function renderProfile(account, role) {
-        return `
-            <div class="panel">
-                <div class="info-grid">
-                    <div class="info-card">
-                        <span>Full Name</span>
-                        <strong>${escapeHTML(account.name)}</strong>
-                    </div>
+        const isApproved = role === "supervisor" ? false : true;
 
-                    <div class="info-card">
-                        <span>ID Number</span>
-                        <strong>${escapeHTML(account.id)}</strong>
-                    </div>
+        const newAccount = {
+            id: "acc_" + Date.now() + "_" + Math.random().toString(36).slice(2, 6),
+            role,
+            name,
+            email,
+            idNumber,
+            program,
+            yearLevel,
+            company,
+            position,
+            contact,
+            address,
+            password,
+            approved: isApproved,
+            requiredHours: DEFAULT_REQUIRED_HOURS
+        };
 
-                    <div class="info-card">
-                        <span>Role</span>
-                        <strong>${escapeHTML(roleNames[role])}</strong>
-                    </div>
+        accounts.push(newAccount);
+        saveAccounts(accounts);
 
-                    <div class="info-card">
-                        <span>Account Status</span>
-                        <strong>${statusBadge("Active")}</strong>
-                    </div>
-                </div>
-            </div>`;
-    }
+        if (role === "supervisor") {
+            accounts
+                .filter((a) => a.role === "coordinator")
+                .forEach((coord) => {
+                    pushNotification(
+                        coord.id,
+                        "New Supervisor Registration",
+                        `${name} (${company || "Company"}) registered as Supervisor and is pending your approval.`
+                    );
+                });
+        }
 
-    function renderCompany(account) {
-        return `
-            ${panel(
-                "Company / Placement",
-                `
-                <div class="notice">
-                    Your internship placement details can be added here when your company information is available.
-                </div>
+        registerForm.reset();
+        updateRegisterRoleFields();
+        registerMessage.classList.add("success");
 
-                <div class="info-grid">
-                    <div class="info-card">
-                        <span>Student Name</span>
-                        <strong>${escapeHTML(account.name)}</strong>
-                    </div>
-
-                    <div class="info-card">
-                        <span>Student ID</span>
-                        <strong>${escapeHTML(account.id)}</strong>
-                    </div>
-
-                    <div class="info-card">
-                        <span>Company Name</span>
-                        <strong>Not yet assigned</strong>
-                    </div>
-
-                    <div class="info-card">
-                        <span>Placement Status</span>
-                        <strong>${statusBadge("Pending")}</strong>
-                    </div>
-                </div>
-                `
-            )}`;
-    }
-
-    function getRequirements(account) {
-        const all = readJSON(KEYS.requirements, []);
-
-        return Array.isArray(all)
-            ? all.filter(item => String(item.studentId) === String(account.id))
-            : [];
-    }
-
-    function renderRequirements(account, role) {
-        const allRequirements = readJSON(KEYS.requirements, []);
-        let records;
-
-        if (role === "student") {
-            records = getRequirements(account);
+        if (role === "supervisor") {
+            registerMessage.textContent = "Supervisor account created! You cannot sign in yet until approved by the Internship Coordinator.";
         } else {
-            records = allRequirements;
+            registerMessage.textContent = "Account created successfully! You can now sign in.";
+            setTimeout(() => showAuthPage("login"), 900);
+        }
+    });
+
+    loginForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+        loginMessage.className = "form-message";
+
+        const rawIdentifier = $("login-id").value.trim();
+        const identifier = rawIdentifier.toLowerCase();
+        const password = $("login-password").value;
+
+        const account = getAccounts().find(
+            (a) =>
+                (a.idNumber.toLowerCase() === identifier ||
+                    a.email.toLowerCase() === identifier ||
+                    a.name.toLowerCase() === identifier) &&
+                a.password === password
+        );
+
+        if (!account) {
+            loginMessage.classList.add("error");
+            loginMessage.textContent = "Invalid ID number/email or password.";
+            return;
         }
 
-        const rows = records.map(item => {
-            const student = loadAccounts().find(user => String(user.id) === String(item.studentId));
+        if (account.role === "supervisor" && !account.approved) {
+            loginMessage.classList.add("error");
+            loginMessage.textContent = "Your supervisor account is still pending approval from the Internship Coordinator.";
+            return;
+        }
 
-            return [
-                escapeHTML(student ? student.name : item.studentName || "Unknown"),
-                escapeHTML(item.name || "Requirement"),
-                statusBadge(item.status || "Pending"),
-                escapeHTML(item.date || "—")
-            ];
+        try {
+            if (rememberMeCheckbox && rememberMeCheckbox.checked) {
+                localStorage.setItem(KEYS.remembered, rawIdentifier);
+            } else {
+                localStorage.removeItem(KEYS.remembered);
+            }
+        } catch (_) {}
+
+        localStorage.setItem(KEYS.session, "true");
+        localStorage.setItem(KEYS.current, account.id);
+        isBrandMenuExpanded = false;
+        editingTaskId = null;
+        editingEvalId = null;
+        currentPage = "dashboard";
+        showSystemPage(account);
+    });
+
+    forgotForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+        forgotMessage.className = "form-message";
+
+        const identifier = $("forgot-id").value.trim().toLowerCase();
+        const newPass = $("forgot-password").value;
+        const confirmPass = $("forgot-confirm").value;
+
+        if (newPass.length < 6) {
+            forgotMessage.classList.add("error");
+            forgotMessage.textContent = "New password must be at least 6 characters.";
+            return;
+        }
+        if (newPass !== confirmPass) {
+            forgotMessage.classList.add("error");
+            forgotMessage.textContent = "Passwords do not match.";
+            return;
+        }
+
+        const accounts = getAccounts();
+        const idx = accounts.findIndex(
+            (a) => a.idNumber.toLowerCase() === identifier || a.email.toLowerCase() === identifier
+        );
+        if (idx === -1) {
+            forgotMessage.classList.add("error");
+            forgotMessage.textContent = "No account found with that ID number or email.";
+            return;
+        }
+
+        accounts[idx].password = newPass;
+        saveAccounts(accounts);
+        forgotForm.reset();
+        forgotMessage.classList.add("success");
+        forgotMessage.textContent = "Password reset successfully! You can now sign in.";
+        setTimeout(() => showAuthPage("login"), 900);
+    });
+
+    // TOPBAR DROPDOWN EVENTS
+    topbarUserToggle.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const isOpen = !topbarQuickMenu.classList.contains("hidden");
+        setQuickMenuOpen(!isOpen);
+    });
+
+    document.addEventListener("click", (e) => {
+        if (topbarUserWrap && !topbarUserWrap.contains(e.target)) {
+            setQuickMenuOpen(false);
+        }
+    });
+
+    topbarQuickMenu.querySelectorAll("[data-quick-page]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+            const acc = getCurrentAccount();
+            if (!acc) return;
+            currentPage = btn.getAttribute("data-quick-page");
+            editingTaskId = null;
+            editingEvalId = null;
+            setQuickMenuOpen(false);
+            renderSidebar(acc.role);
+            renderPage(currentPage, acc);
+        });
+    });
+
+    topbarThemeToggle.addEventListener("click", (e) => {
+        e.stopPropagation();
+        toggleTheme();
+    });
+
+    $("logout-btn").addEventListener("click", () => {
+        localStorage.removeItem(KEYS.session);
+        localStorage.removeItem(KEYS.current);
+        isBrandMenuExpanded = false;
+        editingTaskId = null;
+        editingEvalId = null;
+        currentPage = "dashboard";
+        showAuthPage("login");
+    });
+
+    // PAGE RENDERERS
+    function renderPage(page, account) {
+        const meta = pageMeta[page] || pageMeta.dashboard;
+        pageTitle.textContent = meta.title;
+        pageSubtitle.textContent = meta.subtitle;
+
+        if (page === "dashboard") {
+            renderDashboard(account);
+        } else if (page === "assignment") {
+            renderStudentAssignmentPage(account);
+        } else if (page === "students") {
+            renderStudentsPage(account);
+        } else if (page === "supervisors") {
+            renderSupervisorsPage(account);
+        } else if (page === "interns") {
+            renderInternsPage(account);
+        } else if (page === "tasks") {
+            renderTasksPage(account);
+        } else if (page === "attendance") {
+            renderAttendancePage(account);
+        } else if (page === "progress") {
+            renderProgressPage(account);
+        } else if (page === "evaluation" || page === "evaluations") {
+            renderEvaluationPage(account);
+        } else if (page === "reports") {
+            renderReportsPage(account);
+        } else if (page === "notifications") {
+            renderNotificationsPage(account);
+        } else if (page === "profile") {
+            renderProfilePage(account);
+        } else {
+            renderDashboard(account);
+        }
+    }
+
+    function renderDashboard(account) {
+        const accounts = getAccounts();
+        const students = accounts.filter((a) => a.role === "student");
+        const supervisors = accounts.filter((a) => a.role === "supervisor");
+        const assignments = getAssignments();
+        const attendance = getAttendance();
+        const tasks = getTasks();
+        const evaluations = getEvaluations();
+
+        const assignedStudents = account.role === "supervisor" ? getAssignedStudentsForSupervisor(account.id) : [];
+        const myAssignment = account.role === "student" ? getActiveAssignmentForStudent(account.id) : null;
+        const renderedHours = account.role === "student" ? getStudentRenderedHours(account.id) : 0;
+
+        let cardsHTML = "";
+        if (account.role === "student") {
+            cardsHTML = `
+                <div class="stat-card">
+                    <div class="stat-top"><span class="stat-label">Rendered Hours</span><span class="stat-icon">⏱️</span></div>
+                    <div class="stat-value">${formatHours(renderedHours)}</div>
+                    <div class="stat-note">of ${account.requiredHours || DEFAULT_REQUIRED_HOURS} required hours</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-top"><span class="stat-label">Assigned Company</span><span class="stat-icon">🏢</span></div>
+                    <div class="stat-value">${escapeHTML(myAssignment ? myAssignment.company : "Unassigned")}</div>
+                    <div class="stat-note">${escapeHTML(myAssignment ? myAssignment.supervisorName : "Assigned by Coordinator")}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-top"><span class="stat-label">My Tasks</span><span class="stat-icon">📝</span></div>
+                    <div class="stat-value">${tasks.filter((t) => t.studentId === account.id).length}</div>
+                    <div class="stat-note">Tasks assigned by Supervisor</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-top"><span class="stat-label">Evaluations</span><span class="stat-icon">⭐</span></div>
+                    <div class="stat-value">${evaluations.filter((ev) => ev.studentId === account.id).length}</div>
+                    <div class="stat-note">Feedback from Supervisor</div>
+                </div>
+            `;
+        } else if (account.role === "supervisor") {
+            cardsHTML = `
+                <div class="stat-card">
+                    <div class="stat-top"><span class="stat-label">Assigned Interns</span><span class="stat-icon">🎓</span></div>
+                    <div class="stat-value">${assignedStudents.length}</div>
+                    <div class="stat-note">Assigned by Coordinator</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-top"><span class="stat-label">Assigned Tasks</span><span class="stat-icon">📝</span></div>
+                    <div class="stat-value">${tasks.filter((t) => t.supervisorId === account.id).length}</div>
+                    <div class="stat-note">Tasks you created & manage</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-top"><span class="stat-label">Evaluations Submitted</span><span class="stat-icon">⭐</span></div>
+                    <div class="stat-value">${evaluations.filter((ev) => ev.supervisorId === account.id).length}</div>
+                    <div class="stat-note">Intern evaluations & feedback</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-top"><span class="stat-label">Attendance Logs</span><span class="stat-icon">⏱️</span></div>
+                    <div class="stat-value">${attendance.length}</div>
+                    <div class="stat-note">Recorded attendance entries</div>
+                </div>
+            `;
+        } else {
+            cardsHTML = `
+                <div class="stat-card">
+                    <div class="stat-top"><span class="stat-label">Student Interns</span><span class="stat-icon">🎓</span></div>
+                    <div class="stat-value">${students.length}</div>
+                    <div class="stat-note">${assignments.filter((a) => a.status === "Active").length} active assignments</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-top"><span class="stat-label">Supervisors</span><span class="stat-icon">👔</span></div>
+                    <div class="stat-value">${supervisors.length}</div>
+                    <div class="stat-note">${supervisors.filter((s) => s.approved).length} approved</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-top"><span class="stat-label">Active Assignments</span><span class="stat-icon">🏢</span></div>
+                    <div class="stat-value">${assignments.filter((a) => a.status === "Active").length}</div>
+                    <div class="stat-note">Managed by Coordinator</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-top"><span class="stat-label">Evaluations</span><span class="stat-icon">⭐</span></div>
+                    <div class="stat-value">${evaluations.length}</div>
+                    <div class="stat-note">Submitted by Supervisors</div>
+                </div>
+            `;
+        }
+
+        contentArea.innerHTML = `
+            <div class="welcome-banner">
+                <h2>Welcome, ${escapeHTML(account.name)}!</h2>
+                <p>Click the small arrow beside the logo on the left sidebar to open <strong>InternTrack</strong> (${escapeHTML(roleNames[account.role] || account.role)}) and the <strong>MAIN MENU</strong>.</p>
+            </div>
+            <div class="card-grid">${cardsHTML}</div>
+        `;
+    }
+
+    function renderStudentAssignmentPage(account) {
+        const assignment = getActiveAssignmentForStudent(account.id);
+        contentArea.innerHTML = `
+            <div class="panel">
+                <div class="panel-header">
+                    <div>
+                        <h3>My Internship Assignment</h3>
+                        <p>Assigned by your Internship Coordinator.</p>
+                    </div>
+                </div>
+                ${
+                    assignment
+                        ? `
+                    <div class="info-grid">
+                        <div class="info-card"><span>Company</span><strong>${escapeHTML(assignment.company)}</strong></div>
+                        <div class="info-card"><span>Supervisor</span><strong>${escapeHTML(assignment.supervisorName)}</strong></div>
+                        <div class="info-card"><span>Department / Role</span><strong>${escapeHTML(assignment.department || "General Intern")}</strong></div>
+                        <div class="info-card"><span>Status</span><strong>${escapeHTML(assignment.status)}</strong></div>
+                    </div>
+                `
+                        : `<div class="empty-state"><h3>No active assignment yet</h3><p>Your Internship Coordinator will assign your company and supervisor.</p></div>`
+                }
+            </div>
+        `;
+    }
+
+    // COORDINATOR ASSIGNING INTERNS TO COMPANIES & SUPERVISORS
+    function renderStudentsPage(account) {
+        const accounts = getAccounts();
+        const students = accounts.filter((a) => a.role === "student");
+        const supervisors = accounts.filter((a) => a.role === "supervisor" && a.approved);
+        const assignments = getAssignments();
+
+        const filteredStudents = students.filter((st) => {
+            const assign = assignments.find((a) => a.studentId === st.id && a.status === "Active");
+            const matchesSearch =
+                !studentFilterSearch ||
+                st.name.toLowerCase().includes(studentFilterSearch.toLowerCase()) ||
+                st.idNumber.toLowerCase().includes(studentFilterSearch.toLowerCase()) ||
+                (st.program || "").toLowerCase().includes(studentFilterSearch.toLowerCase());
+            const matchesCompany =
+                studentFilterCompany === "all" ||
+                (studentFilterCompany === "unassigned" && !assign) ||
+                (assign && assign.company === studentFilterCompany);
+            return matchesSearch && matchesCompany;
         });
 
-        let addForm = "";
+        const companyOptions = Array.from(
+            new Set(assignments.filter((a) => a.status === "Active" && a.company).map((a) => a.company))
+        );
 
-        if (role === "student") {
-            addForm = `
-                <form id="requirement-form" class="inline-form">
-                    <div class="field">
-                        <label for="requirement-name">Requirement Name</label>
-                        <input id="requirement-name" required placeholder="e.g. Endorsement Letter">
+        const coordinatorFormHTML = account.role === "coordinator"
+            ? `
+                <div class="panel">
+                    <div class="panel-header">
+                        <div>
+                            <h3>Assign Student Intern (Coordinator)</h3>
+                            <p>Assign or update a student intern's host company and approved supervisor.</p>
+                        </div>
                     </div>
+                    <form id="assign-student-form">
+                        <div class="form-grid">
+                            <div>
+                                <label for="assign-student-id">Student Intern</label>
+                                <select id="assign-student-id" required>
+                                    <option value="">Select Student Intern</option>
+                                    ${students
+                                        .map(
+                                            (st) => `<option value="${escapeHTML(st.id)}">${escapeHTML(st.name)} (${escapeHTML(st.idNumber)})</option>`
+                                        )
+                                        .join("")}
+                                </select>
+                            </div>
+                            <div>
+                                <label for="assign-supervisor-id">Approved Supervisor</label>
+                                <select id="assign-supervisor-id" required>
+                                    <option value="">Select Supervisor</option>
+                                    ${supervisors
+                                        .map(
+                                            (sup) => `<option value="${escapeHTML(sup.id)}">${escapeHTML(sup.name)} · ${escapeHTML(sup.company || "Company")}</option>`
+                                        )
+                                        .join("")}
+                                </select>
+                            </div>
+                            <div>
+                                <label for="assign-company">Company Name</label>
+                                <input id="assign-company" type="text" placeholder="e.g. ABC Tech Solutions" required>
+                            </div>
+                            <div>
+                                <label for="assign-department">Department / Role</label>
+                                <input id="assign-department" type="text" placeholder="e.g. Web Development">
+                            </div>
+                        </div>
+                        <div class="form-submit-row">
+                            <button type="submit" class="primary-btn">Save / Update Assignment</button>
+                        </div>
+                        <p id="assign-student-msg" class="form-message"></p>
+                    </form>
+                </div>
+            `
+            : "";
 
-                    <button class="primary-btn" type="submit">Add Requirement</button>
-                </form>`;
-        } else if (role === "supervisor" || role === "coordinator") {
-            addForm = `
-                <form id="requirement-review-form" class="form-grid">
+        contentArea.innerHTML = `
+            ${coordinatorFormHTML}
+            <div class="panel">
+                <div class="panel-header">
                     <div>
-                        <label for="review-student-id">Student ID</label>
-                        <input id="review-student-id" required placeholder="Student ID">
+                        <h3>Registered Students Record</h3>
+                        <p>Search, filter, or update student assignments.</p>
                     </div>
+                </div>
+                <div class="filter-bar">
+                    <input id="student-search-input" type="text" placeholder="Search name, ID, or program..." value="${escapeHTML(studentFilterSearch)}">
+                    <select id="student-company-select">
+                        <option value="all">All Companies</option>
+                        <option value="unassigned" ${studentFilterCompany === "unassigned" ? "selected" : ""}>Unassigned</option>
+                        ${companyOptions
+                            .map((c) => `<option value="${escapeHTML(c)}" ${studentFilterCompany === c ? "selected" : ""}>${escapeHTML(c)}</option>`)
+                            .join("")}
+                    </select>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID Number</th>
+                                <th>Student</th>
+                                <th>Program</th>
+                                <th>Assigned Company & Supervisor</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${
+                                filteredStudents.length
+                                    ? filteredStudents
+                                          .map((st) => {
+                                              const assign = assignments.find((a) => a.studentId === st.id && a.status === "Active");
+                                              return `
+                                        <tr>
+                                            <td>${escapeHTML(st.idNumber)}</td>
+                                            <td><strong>${escapeHTML(st.name)}</strong></td>
+                                            <td>${escapeHTML(st.program || "-")}</td>
+                                            <td>${
+                                                assign
+                                                    ? `${escapeHTML(assign.company)} · ${escapeHTML(assign.supervisorName)}`
+                                                    : `<span class="badge warning">Unassigned</span>`
+                                            }</td>
+                                            <td>
+                                                ${
+                                                    account.role === "coordinator" && assign
+                                                        ? `<button type="button" class="small-btn danger-btn remove-assign-btn" data-assign-id="${escapeHTML(assign.id)}">Remove</button>`
+                                                        : "-"
+                                                }
+                                            </td>
+                                        </tr>
+                                    `;
+                                          })
+                                          .join("")
+                                    : `<tr><td colspan="5" class="empty-state">No student records found.</td></tr>`
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
 
+        const assignForm = $("assign-student-form");
+        if (assignForm) {
+            $("assign-supervisor-id").addEventListener("change", () => {
+                const sup = supervisors.find((s) => s.id === $("assign-supervisor-id").value);
+                if (sup && sup.company && !$("assign-company").value.trim()) {
+                    $("assign-company").value = sup.company;
+                }
+            });
+
+            assignForm.addEventListener("submit", (e) => {
+                e.preventDefault();
+                const msg = $("assign-student-msg");
+                msg.className = "form-message";
+
+                const studentId = $("assign-student-id").value;
+                const supervisorId = $("assign-supervisor-id").value;
+                const company = $("assign-company").value.trim();
+                const department = $("assign-department").value.trim();
+
+                const student = students.find((s) => s.id === studentId);
+                const supervisor = supervisors.find((s) => s.id === supervisorId);
+                if (!student || !supervisor || !company) {
+                    msg.classList.add("error");
+                    msg.textContent = "Please select a student, approved supervisor, and company.";
+                    return;
+                }
+
+                const updated = getAssignments().map((a) =>
+                    a.studentId === studentId && a.status === "Active" ? { ...a, status: "Replaced" } : a
+                );
+                updated.unshift({
+                    id: "assign_" + Date.now(),
+                    studentId,
+                    studentName: student.name,
+                    supervisorId,
+                    supervisorName: supervisor.name,
+                    company,
+                    department,
+                    status: "Active",
+                    updatedAt: new Date().toISOString()
+                });
+                saveAssignments(updated);
+
+                pushNotification(studentId, "Internship Assigned", `You are assigned to ${company} under ${supervisor.name}.`);
+                pushNotification(supervisorId, "New Intern Assigned", `${student.name} (${student.idNumber}) was assigned to you.`);
+
+                msg.classList.add("success");
+                msg.textContent = "Assignment saved!";
+                renderStudentsPage(account);
+            });
+        }
+
+        $("student-search-input").addEventListener("input", (e) => {
+            studentFilterSearch = e.target.value;
+            renderStudentsPage(account);
+        });
+
+        $("student-company-select").addEventListener("change", (e) => {
+            studentFilterCompany = e.target.value;
+            renderStudentsPage(account);
+        });
+
+        contentArea.querySelectorAll(".remove-assign-btn").forEach((btn) => {
+            btn.addEventListener("click", () => {
+                const assignId = btn.getAttribute("data-assign-id");
+                const updated = getAssignments().map((a) => (a.id === assignId ? { ...a, status: "Inactive" } : a));
+                saveAssignments(updated);
+                renderStudentsPage(account);
+            });
+        });
+    }
+
+    function renderSupervisorsPage(account) {
+        const supervisors = getAccounts().filter((a) => a.role === "supervisor");
+
+        contentArea.innerHTML = `
+            <div class="panel">
+                <div class="panel-header">
                     <div>
-                        <label for="review-requirement-name">Requirement Name</label>
-                        <input id="review-requirement-name" required placeholder="Requirement name">
+                        <h3>Supervisor Accounts & Approval</h3>
+                        <p>Coordinator approval control for registered supervisors.</p>
                     </div>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID Number</th>
+                                <th>Supervisor</th>
+                                <th>Company & Position</th>
+                                <th>Status</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${
+                                supervisors.length
+                                    ? supervisors
+                                          .map(
+                                              (sup) => `
+                                        <tr>
+                                            <td>${escapeHTML(sup.idNumber)}</td>
+                                            <td><strong>${escapeHTML(sup.name)}</strong><br><span class="muted">${escapeHTML(sup.email)}</span></td>
+                                            <td>${escapeHTML(sup.company || "-")}${sup.position ? ` · ${escapeHTML(sup.position)}` : ""}</td>
+                                            <td><span class="badge ${sup.approved ? "success" : "warning"}">${sup.approved ? "Approved" : "Pending"}</span></td>
+                                            <td>
+                                                ${
+                                                    account.role === "coordinator"
+                                                        ? `
+                                                            <button type="button" class="small-btn approve-btn toggle-sup-btn" data-sup-id="${escapeHTML(sup.id)}" data-approved="${sup.approved ? "true" : "false"}">
+                                                                ${sup.approved ? "Revoke Approval" : "Approve"}
+                                                            </button>
+                                                        `
+                                                        : "-"
+                                                }
+                                            </td>
+                                        </tr>
+                                    `
+                                          )
+                                          .join("")
+                                    : `<tr><td colspan="5" class="empty-state">No supervisor accounts registered yet.</td></tr>`
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
 
-                    <div class="full-span">
-                        <label for="review-status">Status</label>
-                        <select id="review-status">
-                            <option>Pending</option>
-                            <option>Approved</option>
-                            <option>Rejected</option>
+        contentArea.querySelectorAll(".toggle-sup-btn").forEach((btn) => {
+            btn.addEventListener("click", () => {
+                const supId = btn.getAttribute("data-sup-id");
+                const currentlyApproved = btn.getAttribute("data-approved") === "true";
+                const updated = getAccounts().map((acc) =>
+                    acc.id === supId ? { ...acc, approved: !currentlyApproved } : acc
+                );
+                saveAccounts(updated);
+                pushNotification(
+                    supId,
+                    "Supervisor Account Status Updated",
+                    !currentlyApproved
+                        ? "Your supervisor account has been approved by the Internship Coordinator."
+                        : "Your supervisor approval status has been set to pending."
+                );
+                renderSupervisorsPage(account);
+            });
+        });
+    }
+
+    function renderInternsPage(account) {
+        const interns = account.role === "supervisor"
+            ? getAssignedStudentsForSupervisor(account.id)
+            : getAccounts().filter((a) => a.role === "student");
+
+        contentArea.innerHTML = `
+            <div class="panel">
+                <div class="panel-header">
+                    <div>
+                        <h3>Assigned Student Interns</h3>
+                        <p>Interns assigned to your supervision by the Internship Coordinator.</p>
+                    </div>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID Number</th>
+                                <th>Name</th>
+                                <th>Program & Year</th>
+                                <th>Rendered Hours</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${
+                                interns.length
+                                    ? interns
+                                          .map(
+                                              (st) => `
+                                        <tr>
+                                            <td>${escapeHTML(st.idNumber)}</td>
+                                            <td><strong>${escapeHTML(st.name)}</strong></td>
+                                            <td>${escapeHTML(st.program || "-")} ${escapeHTML(st.yearLevel ? "· " + st.yearLevel : "")}</td>
+                                            <td>${formatHours(getStudentRenderedHours(st.id))} / ${st.requiredHours || DEFAULT_REQUIRED_HOURS} hrs</td>
+                                        </tr>
+                                    `
+                                          )
+                                          .join("")
+                                    : `<tr><td colspan="4" class="empty-state">No assigned student interns yet.</td></tr>`
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+    }
+
+    // SUPERVISOR TASK ASSIGNMENT + UPDATABLE TASKS + STUDENT SUBMISSION
+    function renderTasksPage(account) {
+        const allAccounts = getAccounts();
+        const assignedStudents = account.role === "supervisor" ? getAssignedStudentsForSupervisor(account.id) : [];
+        const tasks = getTasks();
+        const submissions = getSubmissions();
+        const taskToEdit = editingTaskId ? tasks.find((t) => t.id === editingTaskId) : null;
+
+        const assignFormHTML = account.role === "supervisor"
+            ? `
+                <div class="panel">
+                    <div class="panel-header">
+                        <div>
+                            <h3>${taskToEdit ? "Update Assigned Task" : "Assign Task to Intern"}</h3>
+                            <p>${taskToEdit ? "Edit and update task details." : "Create and assign a task to an intern assigned to you."}</p>
+                        </div>
+                    </div>
+                    <form id="assign-task-form">
+                        <div class="form-grid">
+                            <div>
+                                <label for="task-student-select">Assigned Intern</label>
+                                <select id="task-student-select" required>
+                                    <option value="">Select Assigned Intern</option>
+                                    ${assignedStudents
+                                        .map(
+                                            (st) => `<option value="${escapeHTML(st.id)}" ${taskToEdit && taskToEdit.studentId === st.id ? "selected" : ""}>${escapeHTML(st.name)} (${escapeHTML(st.idNumber)})</option>`
+                                        )
+                                        .join("")}
+                                </select>
+                            </div>
+                            <div>
+                                <label for="task-due-date">Due Date</label>
+                                <input id="task-due-date" type="date" value="${escapeHTML(taskToEdit ? taskToEdit.dueDate : "")}" required>
+                            </div>
+                            <div>
+                                <label for="task-title">Task Title</label>
+                                <input id="task-title" type="text" placeholder="e.g. Build login form module" value="${escapeHTML(taskToEdit ? taskToEdit.title : "")}" required>
+                            </div>
+                            <div>
+                                <label for="task-status">Status</label>
+                                <select id="task-status">
+                                    <option value="Pending" ${!taskToEdit || taskToEdit.status === "Pending" ? "selected" : ""}>Pending</option>
+                                    <option value="In Progress" ${taskToEdit && taskToEdit.status === "In Progress" ? "selected" : ""}>In Progress</option>
+                                    <option value="Completed" ${taskToEdit && taskToEdit.status === "Completed" ? "selected" : ""}>Completed</option>
+                                </select>
+                            </div>
+                            <div class="full-span">
+                                <label for="task-description">Instructions / Description</label>
+                                <textarea id="task-description" rows="3" placeholder="Enter task details..." required>${escapeHTML(taskToEdit ? taskToEdit.description : "")}</textarea>
+                            </div>
+                        </div>
+                        <div class="form-submit-row btn-row">
+                            <button type="submit" class="primary-btn">${taskToEdit ? "Update Task" : "Assign Task"}</button>
+                            ${
+                                taskToEdit
+                                    ? `<button type="button" id="cancel-task-edit-btn" class="secondary-btn">Cancel Edit</button>`
+                                    : ""
+                            }
+                        </div>
+                        <p id="task-assign-message" class="form-message"></p>
+                    </form>
+                </div>
+            `
+            : "";
+
+        const visibleTasks = account.role === "student"
+            ? tasks.filter((t) => t.studentId === account.id)
+            : account.role === "supervisor"
+            ? tasks.filter((t) => t.supervisorId === account.id)
+            : tasks;
+
+        const tasksHTML = visibleTasks.length
+            ? visibleTasks
+                  .map((task) => {
+                      const student = allAccounts.find((a) => a.id === task.studentId);
+                      const sub = submissions.find((s) => s.taskId === task.id);
+                      const isDone = task.status === "Completed" || Boolean(sub);
+
+                      return `
+                        <div class="task-card">
+                            <div class="task-card-top">
+                                <div>
+                                    <h3>${escapeHTML(task.title)}</h3>
+                                    <p>${escapeHTML(task.description)}</p>
+                                </div>
+                                <span class="badge ${isDone ? "success" : "warning"}">${escapeHTML(task.status || "Pending")}</span>
+                            </div>
+                            <div class="task-due muted">
+                                <strong>Intern:</strong> ${escapeHTML(student ? `${student.name} (${student.idNumber})` : "Student Intern")} ·
+                                <strong>Due:</strong> ${escapeHTML(formatDateOnly(task.dueDate))}
+                            </div>
+                            ${
+                                sub
+                                    ? `<p class="muted"><strong>Submission:</strong> ${escapeHTML(sub.notes)} (${escapeHTML(formatDateTime(sub.submittedAt))})</p>`
+                                    : ""
+                            }
+                            ${
+                                account.role === "supervisor"
+                                    ? `
+                                        <div class="btn-row" style="margin-top: 12px;">
+                                            <button type="button" class="small-btn edit-task-btn" data-task-id="${escapeHTML(task.id)}">Edit / Update</button>
+                                            <button type="button" class="small-btn danger-btn delete-task-btn" data-task-id="${escapeHTML(task.id)}">Delete</button>
+                                        </div>
+                                    `
+                                    : ""
+                            }
+                            ${
+                                account.role === "student"
+                                    ? `
+                                        <form class="task-submit-form" data-task-id="${escapeHTML(task.id)}">
+                                            <textarea placeholder="${sub ? "Update your task submission notes or link..." : "Write your task submission notes or link..."}">${escapeHTML(sub ? sub.notes : "")}</textarea>
+                                            <button type="submit" class="primary-btn">${sub ? "Update Submission" : "Submit Task"}</button>
+                                        </form>
+                                    `
+                                    : ""
+                            }
+                        </div>
+                    `;
+                  })
+                  .join("")
+            : `<div class="empty-state"><h3>No tasks yet</h3><p>Assigned tasks will appear here.</p></div>`;
+
+        contentArea.innerHTML = `
+            ${assignFormHTML}
+            <div class="panel">
+                <div class="panel-header">
+                    <div>
+                        <h3>${account.role === "student" ? "My Assigned Tasks" : "Assigned Tasks List"}</h3>
+                        <p>Track, update, and manage internship tasks.</p>
+                    </div>
+                </div>
+                <div class="task-list">${tasksHTML}</div>
+            </div>
+        `;
+
+        const assignForm = $("assign-task-form");
+        if (assignForm) {
+            assignForm.addEventListener("submit", (e) => {
+                e.preventDefault();
+                const msg = $("task-assign-message");
+                msg.className = "form-message";
+
+                const studentId = $("task-student-select").value;
+                const dueDate = $("task-due-date").value;
+                const title = $("task-title").value.trim();
+                const status = $("task-status").value;
+                const description = $("task-description").value.trim();
+
+                if (!studentId || !dueDate || !title || !description) {
+                    msg.classList.add("error");
+                    msg.textContent = "Please complete all task fields.";
+                    return;
+                }
+
+                const updatedTasks = getTasks();
+                if (editingTaskId) {
+                    const idx = updatedTasks.findIndex((t) => t.id === editingTaskId);
+                    if (idx !== -1) {
+                        updatedTasks[idx] = {
+                            ...updatedTasks[idx],
+                            studentId,
+                            dueDate,
+                            title,
+                            status,
+                            description,
+                            updatedAt: new Date().toISOString()
+                        };
+                    }
+                    editingTaskId = null;
+                    saveTasks(updatedTasks);
+                    pushNotification(studentId, "Task Updated", `${account.name} updated task "${title}".`);
+                    msg.classList.add("success");
+                    msg.textContent = "Task updated successfully!";
+                } else {
+                    updatedTasks.unshift({
+                        id: "task_" + Date.now() + "_" + Math.random().toString(36).slice(2, 6),
+                        supervisorId: account.id,
+                        studentId,
+                        title,
+                        description,
+                        dueDate,
+                        status: status || "Pending",
+                        createdAt: new Date().toISOString()
+                    });
+                    saveTasks(updatedTasks);
+                    pushNotification(studentId, "New Task Assigned", `${account.name} assigned you a task: "${title}".`);
+                    msg.classList.add("success");
+                    msg.textContent = "Task assigned successfully!";
+                }
+
+                assignForm.reset();
+                renderTasksPage(account);
+            });
+        }
+
+        const cancelEditBtn = $("cancel-task-edit-btn");
+        if (cancelEditBtn) {
+            cancelEditBtn.addEventListener("click", () => {
+                editingTaskId = null;
+                renderTasksPage(account);
+            });
+        }
+
+        contentArea.querySelectorAll(".edit-task-btn").forEach((btn) => {
+            btn.addEventListener("click", () => {
+                editingTaskId = btn.getAttribute("data-task-id");
+                renderTasksPage(account);
+            });
+        });
+
+        contentArea.querySelectorAll(".delete-task-btn").forEach((btn) => {
+            btn.addEventListener("click", () => {
+                const taskId = btn.getAttribute("data-task-id");
+                if (editingTaskId === taskId) editingTaskId = null;
+                saveTasks(getTasks().filter((t) => t.id !== taskId));
+                saveSubmissions(getSubmissions().filter((s) => s.taskId !== taskId));
+                renderTasksPage(account);
+            });
+        });
+
+        contentArea.querySelectorAll(".task-submit-form").forEach((form) => {
+            form.addEventListener("submit", (e) => {
+                e.preventDefault();
+                const taskId = form.getAttribute("data-task-id");
+                const textarea = form.querySelector("textarea");
+                const notes = textarea ? textarea.value.trim() : "";
+                if (!notes) return;
+
+                const subs = getSubmissions();
+                const existingIdx = subs.findIndex((s) => s.taskId === taskId && s.studentId === account.id);
+                const payload = {
+                    id: existingIdx !== -1 ? subs[existingIdx].id : "sub_" + Date.now(),
+                    taskId,
+                    studentId: account.id,
+                    notes,
+                    submittedAt: new Date().toISOString()
+                };
+                if (existingIdx !== -1) {
+                    subs[existingIdx] = payload;
+                } else {
+                    subs.unshift(payload);
+                }
+                saveSubmissions(subs);
+
+                const allTasks = getTasks().map((t) => (t.id === taskId ? { ...t, status: "Completed" } : t));
+                saveTasks(allTasks);
+
+                const targetTask = allTasks.find((t) => t.id === taskId);
+                if (targetTask && targetTask.supervisorId) {
+                    pushNotification(
+                        targetTask.supervisorId,
+                        "Task Submission Updated",
+                        `${account.name} submitted/updated task "${targetTask.title}".`
+                    );
+                }
+
+                renderTasksPage(account);
+            });
+        });
+    }
+
+    // ATTENDANCE LOGGING & VERIFICATION
+    function renderAttendancePage(account) {
+        const allAccounts = getAccounts();
+        const students = allAccounts.filter((a) => a.role === "student");
+        const records = getAttendance();
+
+        const filtered = records.filter((r) => {
+            const st = allAccounts.find((a) => a.id === r.studentId);
+            const matchesSearch =
+                !attendanceFilterSearch ||
+                (st &&
+                    (st.name.toLowerCase().includes(attendanceFilterSearch.toLowerCase()) ||
+                        st.idNumber.toLowerCase().includes(attendanceFilterSearch.toLowerCase())));
+            const matchesStatus = attendanceFilterStatus === "all" || r.status === attendanceFilterStatus;
+            return matchesSearch && matchesStatus;
+        });
+
+        const logFormHTML =
+            account.role === "supervisor" || account.role === "coordinator"
+                ? `
+            <div class="panel">
+                <div class="panel-header">
+                    <div>
+                        <h3>Log / Update Attendance Hours</h3>
+                        <p>Record or verify internship hours for a student intern.</p>
+                    </div>
+                </div>
+                <form id="attendance-log-form">
+                    <div class="form-grid">
+                        <div>
+                            <label for="att-student-id">Student Intern</label>
+                            <select id="att-student-id" required>
+                                <option value="">Select Student Intern</option>
+                                ${students
+                                    .map(
+                                        (st) => `<option value="${escapeHTML(st.id)}">${escapeHTML(st.name)} (${escapeHTML(st.idNumber)})</option>`
+                                    )
+                                    .join("")}
+                            </select>
+                        </div>
+                        <div>
+                            <label for="att-date">Date</label>
+                            <input id="att-date" type="date" required>
+                        </div>
+                        <div>
+                            <label for="att-hours">Hours Rendered</label>
+                            <input id="att-hours" type="number" step="0.25" min="0.25" max="24" placeholder="e.g. 8" required>
+                        </div>
+                        <div>
+                            <label for="att-status">Verification Status</label>
+                            <select id="att-status">
+                                <option value="Verified">Verified</option>
+                                <option value="Pending">Pending</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-submit-row">
+                        <button type="submit" class="primary-btn">Save Attendance Log</button>
+                    </div>
+                    <p id="att-log-msg" class="form-message"></p>
+                </form>
+            </div>
+        `
+                : "";
+
+        contentArea.innerHTML = `
+            ${logFormHTML}
+            <div class="panel">
+                <div class="panel-header">
+                    <div>
+                        <h3>Attendance Records</h3>
+                        <p>Filter and update attendance verification status.</p>
+                    </div>
+                </div>
+                <div class="filter-bar">
+                    <input id="att-search-input" type="text" placeholder="Search student name or ID..." value="${escapeHTML(attendanceFilterSearch)}">
+                    <select id="att-status-select">
+                        <option value="all" ${attendanceFilterStatus === "all" ? "selected" : ""}>All Status</option>
+                        <option value="Pending" ${attendanceFilterStatus === "Pending" ? "selected" : ""}>Pending</option>
+                        <option value="Verified" ${attendanceFilterStatus === "Verified" ? "selected" : ""}>Verified</option>
+                    </select>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Student Intern</th>
+                                <th>Hours</th>
+                                <th>Status</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${
+                                filtered.length
+                                    ? filtered
+                                          .map((rec) => {
+                                              const st = allAccounts.find((a) => a.id === rec.studentId);
+                                              return `
+                                        <tr>
+                                            <td>${escapeHTML(formatDateOnly(rec.date))}</td>
+                                            <td><strong>${escapeHTML(st ? st.name : "Student")}</strong> (${escapeHTML(st ? st.idNumber : "-")})</td>
+                                            <td>${escapeHTML(formatHours(rec.hours))} hrs</td>
+                                            <td><span class="badge ${rec.status === "Verified" ? "success" : "warning"}">${escapeHTML(rec.status)}</span></td>
+                                            <td>
+                                                ${
+                                                    account.role === "supervisor" || account.role === "coordinator"
+                                                        ? `
+                                                            <div class="btn-row">
+                                                                <button type="button" class="small-btn approve-btn verify-att-btn" data-att-id="${escapeHTML(rec.id)}">Verify</button>
+                                                                <button type="button" class="small-btn danger-btn del-att-btn" data-att-id="${escapeHTML(rec.id)}">Delete</button>
+                                                            </div>
+                                                        `
+                                                        : "-"
+                                                }
+                                            </td>
+                                        </tr>
+                                    `;
+                                          })
+                                          .join("")
+                                    : `<tr><td colspan="5" class="empty-state">No attendance logs found.</td></tr>`
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+
+        const attForm = $("attendance-log-form");
+        if (attForm) {
+            attForm.addEventListener("submit", (e) => {
+                e.preventDefault();
+                const msg = $("att-log-msg");
+                msg.className = "form-message";
+                const studentId = $("att-student-id").value;
+                const date = $("att-date").value;
+                const hours = Number($("att-hours").value);
+                const status = $("att-status").value;
+
+                if (!studentId || !date || !hours || hours <= 0) {
+                    msg.classList.add("error");
+                    msg.textContent = "Please complete all attendance fields.";
+                    return;
+                }
+
+                const list = getAttendance();
+                list.unshift({
+                    id: "att_" + Date.now(),
+                    studentId,
+                    date,
+                    hours,
+                    status,
+                    recordedBy: account.id
+                });
+                saveAttendance(list);
+                pushNotification(studentId, "Attendance Logged", `${formatHours(hours)} hrs on ${formatDateOnly(date)} (${status}).`);
+                attForm.reset();
+                msg.classList.add("success");
+                msg.textContent = "Attendance log saved!";
+                renderAttendancePage(account);
+            });
+        }
+
+        $("att-search-input").addEventListener("input", (e) => {
+            attendanceFilterSearch = e.target.value;
+            renderAttendancePage(account);
+        });
+
+        $("att-status-select").addEventListener("change", (e) => {
+            attendanceFilterStatus = e.target.value;
+            renderAttendancePage(account);
+        });
+
+        contentArea.querySelectorAll(".verify-att-btn").forEach((btn) => {
+            btn.addEventListener("click", () => {
+                const attId = btn.getAttribute("data-att-id");
+                saveAttendance(getAttendance().map((r) => (r.id === attId ? { ...r, status: "Verified" } : r)));
+                renderAttendancePage(account);
+            });
+        });
+
+        contentArea.querySelectorAll(".del-att-btn").forEach((btn) => {
+            btn.addEventListener("click", () => {
+                const attId = btn.getAttribute("data-att-id");
+                saveAttendance(getAttendance().filter((r) => r.id !== attId));
+                renderAttendancePage(account);
+            });
+        });
+    }
+
+    function renderProgressPage(account) {
+        const students = getAccounts().filter((a) => a.role === "student");
+        const targets = account.role === "student" ? students.filter((s) => s.id === account.id) : students;
+
+        const filtered = targets.filter((st) => {
+            const rendered = getStudentRenderedHours(st.id);
+            const req = Number(st.requiredHours) || DEFAULT_REQUIRED_HOURS;
+            const complete = rendered >= req;
+            const matchesSearch =
+                !progressFilterSearch ||
+                st.name.toLowerCase().includes(progressFilterSearch.toLowerCase()) ||
+                st.idNumber.toLowerCase().includes(progressFilterSearch.toLowerCase());
+            const matchesStatus =
+                progressFilterStatus === "all" ||
+                (progressFilterStatus === "completed" && complete) ||
+                (progressFilterStatus === "ongoing" && !complete);
+            return matchesSearch && matchesStatus;
+        });
+
+        contentArea.innerHTML = `
+            <div class="panel">
+                <div class="panel-header">
+                    <div>
+                        <h3>Internship Hours Progress</h3>
+                        <p>Track rendered vs. required hours.</p>
+                    </div>
+                </div>
+                ${
+                    account.role !== "student"
+                        ? `
+                    <div class="filter-bar">
+                        <input id="prog-search-input" type="text" placeholder="Search intern name or ID..." value="${escapeHTML(progressFilterSearch)}">
+                        <select id="prog-status-select">
+                            <option value="all" ${progressFilterStatus === "all" ? "selected" : ""}>All Progress</option>
+                            <option value="ongoing" ${progressFilterStatus === "ongoing" ? "selected" : ""}>Ongoing</option>
+                            <option value="completed" ${progressFilterStatus === "completed" ? "selected" : ""}>Completed</option>
                         </select>
                     </div>
-
-                    <div class="full-span">
-                        <button class="primary-btn" type="submit">Save Requirement Status</button>
-                    </div>
-                </form>`;
-        }
-
-        return `
-            ${panel(role === "student" ? "My Requirements" : "Requirements Review", addForm)}
-            ${panel("Requirement Records", table(["Student", "Requirement", "Status", "Date"], rows))}
-        `;
-    }
-
-    function renderStudentAttendance(account) {
-        const records = visibleAttendance(account, "student").slice().reverse();
-        const hours = totalHours(records);
-
-        const rows = records.map(record => [
-            escapeHTML(formatDate(record.date)),
-            escapeHTML(record.timeIn || "—"),
-            escapeHTML(record.timeOut || "—"),
-            `${Number(record.hours || 0).toFixed(2)} hrs`,
-            statusBadge(record.timeOut ? "Completed" : "Timed In")
-        ]);
-
-        return `
-            <div class="qr-layout">
-                <section class="qr-card">
-                    <h3>QR Code</h3>
-                    <p>Show this code to your supervisor to record attendance.</p>
-
-                    <div id="student-qr" class="qr-code-box">
-                        <span class="muted">Generating QR code...</span>
-                    </div>
-
-                    <div class="qr-id">${escapeHTML(account.id)}</div>
-                    <p>${escapeHTML(account.name)}</p>
-
-                    <button id="download-qr" class="secondary-btn" type="button">
-                        Download QR Code
-                    </button>
-
-                    <p id="qr-message" class="form-message"></p>
-                </section>
-
-                <section class="panel">
-                    <div class="panel-header">
-                        <div>
-                            <h3>Rendered Hours</h3>
-                            <p>Hours completed from your attendance records.</p>
-                        </div>
-                    </div>
-
-                    ${progressMarkup(hours)}
-
-                    <div class="info-grid" style="margin-top:16px">
-                        <div class="info-card">
-                            <span>Rendered Hours</span>
-                            <strong>${hours.toFixed(2)} hrs</strong>
-                        </div>
-
-                        <div class="info-card">
-                            <span>Records</span>
-                            <strong>${records.length}</strong>
-                        </div>
-                    </div>
-                </section>
-            </div>
-
-            ${panel(
-                "Attendance Records",
-                table(["Date", "Time In", "Time Out", "Hours", "Status"], rows)
-            )}
-        `;
-    }
-
-    function renderAttendance(account, role) {
-        if (role === "student") {
-            return renderStudentAttendance(account);
-        }
-
-        const records = visibleAttendance(account, role).slice().reverse();
-
-        const rows = records.map(record => [
-            escapeHTML(record.studentName),
-            escapeHTML(formatDate(record.date)),
-            escapeHTML(record.timeIn || "—"),
-            escapeHTML(record.timeOut || "—"),
-            `${Number(record.hours || 0).toFixed(2)} hrs`,
-            statusBadge(record.timeOut ? "Completed" : "Timed In")
-        ]);
-
-        return `
-            <div class="notice">
-                <strong>Attendance:</strong>
-                Use Scan QR Attendance to record student time in and time out.
-            </div>
-
-            <div class="card-grid">
-                ${statCard("Total Records", records.length, "◷", "Visible attendance records")}
-                ${statCard("Rendered Hours", totalHours(records).toFixed(2), "⌛", "Completed hours")}
-                ${statCard("Completed", records.filter(item => item.timeOut).length, "✓", "Time out recorded")}
-                ${statCard("In Progress", records.filter(item => !item.timeOut).length, "◴", "Waiting for time out")}
-            </div>
-
-            ${panel(
-                "Attendance Records",
-                table(["Student", "Date", "Time In", "Time Out", "Hours", "Status"], rows)
-            )}
-        `;
-    }
-
-    function renderMyQR(account, role) {
-        if (role !== "student") {
-            return emptyState("Access restricted", "Only student accounts can display a student QR code.");
-        }
-
-        return `
-            <div class="qr-layout">
-                <section class="qr-card">
-                    <h3>Student Identification</h3>
-                    <p>This QR code contains your InternTrack student ID.</p>
-
-                    <div id="student-qr" class="qr-code-box">
-                        <span class="muted">Generating QR code...</span>
-                    </div>
-
-                    <div class="qr-id">${escapeHTML(account.id)}</div>
-                    <p>${escapeHTML(account.name)}</p>
-
-                    <button id="download-qr" class="secondary-btn" type="button">
-                        Download QR Code
-                    </button>
-
-                    <p id="qr-message" class="form-message"></p>
-                </section>
-
-                <section class="panel">
-                    <div class="panel-header">
-                        <h3>How to Use Your QR Code</h3>
-                    </div>
-
-                    <div class="list-stack">
-                        <div class="list-item">
-                            <div>
-                                <strong>1. Open your QR Code</strong>
-                                <p>Go to Attendance in the sidebar.</p>
-                            </div>
-                        </div>
-
-                        <div class="list-item">
-                            <div>
-                                <strong>2. Show it to your supervisor</strong>
-                                <p>Keep your screen bright so the camera can read the code.</p>
-                            </div>
-                        </div>
-
-                        <div class="list-item">
-                            <div>
-                                <strong>3. Confirm your attendance</strong>
-                                <p>Your supervisor scans the code to record time in and time out.</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="notice" style="margin-top:18px">
-                        <strong>Important:</strong>
-                        Your QR code identifies your account. Attendance is saved in the browser used by this demo.
-                    </div>
-                </section>
-            </div>`;
-    }
-
-    function renderScanner(account, role) {
-        if (role !== "supervisor") {
-            return emptyState("Access restricted", "Only supervisor accounts can use the QR attendance scanner.");
-        }
-
-        return `
-            <div class="notice">
-                <strong>How it works:</strong>
-                First scan records Time In. The second scan records Time Out.
-                Rendered hours are calculated after Time Out.
-            </div>
-
-            <div class="qr-layout">
-                <section class="panel">
-                    <div class="panel-header">
-                        <div>
-                            <h3>Camera Scanner</h3>
-                            <p>Allow camera access when your browser asks.</p>
-                        </div>
-                    </div>
-
-                    <div id="qr-reader" class="scanner-box"></div>
-
-                    <div class="scanner-actions">
-                        <button id="start-scanner" class="primary-btn" type="button">
-                            Start Camera
-                        </button>
-
-                        <button id="stop-scanner" class="secondary-btn" type="button" disabled>
-                            Stop Camera
-                        </button>
-                    </div>
-
-                    <div id="scan-status" class="scanner-status">
-                        Press Start Camera to begin scanning.
-                    </div>
-                </section>
-
-                <section class="panel">
-                    <div class="panel-header">
-                        <h3>Scan Result</h3>
-                    </div>
-
-                    <div id="scan-result">
-                        ${emptyState("Waiting for scan", "The student's information will appear here after a successful scan.", "▦")}
-                    </div>
-
-                    <div class="notice" style="margin-top:18px">
-                        The camera usually works on HTTPS or localhost. If permission is denied, check your browser's camera settings.
-                    </div>
-                </section>
-            </div>`;
-    }
-
-    function renderDocuments() {
-        return panel(
-            "Documents",
-            `
-            <div class="notice">
-                This section is ready for internship documents such as forms, reports, and certificates.
-            </div>
-
-            ${emptyState("No documents added", "Document upload and storage have not been connected in this local demo.")}
-            `
-        );
-    }
-
-    function renderEvaluation(account, role) {
-        if (role === "student") {
-            const feedback = readJSON(KEYS.feedback, []);
-
-            const mine = Array.isArray(feedback)
-                ? feedback.filter(item => String(item.studentId) === String(account.id))
-                : [];
-
-            return `
-                ${panel(
-                    "Evaluation",
-                    `
-                    <div class="info-grid">
-                        <div class="info-card">
-                            <span>Student</span>
-                            <strong>${escapeHTML(account.name)}</strong>
-                        </div>
-
-                        <div class="info-card">
-                            <span>Evaluation Status</span>
-                            <strong>${statusBadge("Pending")}</strong>
-                        </div>
-                    </div>
-
-                    <p class="muted">
-                        Your evaluation results will appear here when your supervisor records them.
-                    </p>
-                    `
-                )}
-
-                ${panel(
-                    "Feedback",
-                    mine.length
-                        ? `<div class="list-stack">${mine.map(item => `
-                            <div class="list-item">
-                                <div>
-                                    <strong>${escapeHTML(item.title || "Feedback")}</strong>
-                                    <p>${escapeHTML(item.message || "")}</p>
-                                </div>
-                                <span class="muted">${escapeHTML(item.date || "")}</span>
-                            </div>
-                        `).join("")}</div>`
-                        : emptyState("No feedback yet", "Feedback from your supervisor will appear here.", "★")
-                )}
-            `;
-        }
-
-        const students = loadAccounts().filter(item => item.role === "student");
-
-        const rows = students.map(student => [
-            escapeHTML(student.name),
-            escapeHTML(student.id),
-            statusBadge("Pending")
-        ]);
-
-        return panel(
-            role === "supervisor" ? "Intern Evaluations" : "Evaluation Overview",
-            table(["Student", "Student ID", "Evaluation Status"], rows)
-        );
-    }
-
-    function renderNotifications(account, role) {
-        const notifications = readJSON(KEYS.notifications, []);
-
-        const visible = Array.isArray(notifications)
-            ? notifications.filter(item => !item.role || item.role === role)
-            : [];
-
-        return panel(
-            "Notifications",
-            visible.length
-                ? `<div class="list-stack">${visible.map(item => `
-                    <div class="list-item">
-                        <div>
-                            <strong>${escapeHTML(item.title || "Notification")}</strong>
-                            <p>${escapeHTML(item.message || "")}</p>
-                        </div>
-                        <span class="muted">${escapeHTML(item.date || "")}</span>
-                    </div>
-                `).join("")}</div>`
-                : emptyState("No notifications yet", "Updates and reminders will appear here.", "♧")
-        );
-    }
-
-    function renderInterns() {
-        const students = loadAccounts().filter(account => account.role === "student");
-
-        const rows = students.map(student => {
-            const records = getAttendance().filter(item => String(item.studentId) === String(student.id));
-
-            return [
-                escapeHTML(student.name),
-                escapeHTML(student.id),
-                `${totalHours(records).toFixed(2)} hrs`,
-                statusBadge(records.length ? "In Progress" : "Pending")
-            ];
-        });
-
-        return panel(
-            "Registered Student Interns",
-            table(["Student Name", "Student ID", "Rendered Hours", "Status"], rows),
-            "Student accounts registered in this demo."
-        );
-    }
-
-    function renderStudents() {
-        const students = loadAccounts().filter(account => account.role === "student");
-
-        const rows = students.map(student => [
-            escapeHTML(student.name),
-            escapeHTML(student.id),
-            statusBadge("Active")
-        ]);
-
-        return panel(
-            "Student Directory",
-            table(["Full Name", "Student ID", "Status"], rows)
-        );
-    }
-
-    function renderCompanies() {
-        return panel(
-            "Company Directory",
-            emptyState("No company records", "Company registration and management have not been connected yet.")
-        );
-    }
-
-    function renderProgress(account, role) {
-        if (role === "student") {
-            const records = visibleAttendance(account, "student");
-            const hours = totalHours(records);
-
-            const rows = records.slice().reverse().map(record => [
-                escapeHTML(formatDate(record.date)),
-                escapeHTML(record.timeIn || "—"),
-                escapeHTML(record.timeOut || "—"),
-                `${Number(record.hours || 0).toFixed(2)} hrs`
-            ]);
-
-            return `
-                ${panel("Internship Progress", progressMarkup(hours))}
-
-                <div class="card-grid">
-                    ${statCard("Rendered Hours", hours.toFixed(2), "⌛", "Completed hours")}
-                    ${statCard("Remaining Hours", Math.max(0, REQUIRED_HOURS - hours).toFixed(2), "◴", "Hours left to complete")}
-                    ${statCard("Attendance Records", records.length, "◷", "Saved attendance")}
-                    ${statCard("Required Hours", REQUIRED_HOURS, "★", "Internship requirement")}
-                </div>
-
-                ${panel(
-                    "Hours from Attendance",
-                    table(["Date", "Time In", "Time Out", "Hours"], rows)
-                )}
-            `;
-        }
-
-        const students = loadAccounts().filter(item => item.role === "student");
-
-        const rows = students.map(student => {
-            const records = getAttendance().filter(item => String(item.studentId) === String(student.id));
-            const hours = totalHours(records);
-
-            return [
-                escapeHTML(student.name),
-                escapeHTML(student.id),
-                `${hours.toFixed(2)} hrs`,
-                statusBadge(hours > 0 ? "In Progress" : "Pending")
-            ];
-        });
-
-        return panel(
-            "Internship Progress",
-            table(["Student", "ID Number", "Rendered Hours", "Progress"], rows)
-        );
-    }
-
-    function renderReports() {
-        const records = getAttendance();
-        const students = loadAccounts().filter(account => account.role === "student");
-
-        const rows = students.map(student => {
-            const ownRecords = records.filter(item => String(item.studentId) === String(student.id));
-
-            return [
-                escapeHTML(student.name),
-                escapeHTML(student.id),
-                ownRecords.length,
-                `${totalHours(ownRecords).toFixed(2)} hrs`,
-                ownRecords.filter(item => item.timeOut).length
-            ];
-        });
-
-        return `
-            <div class="card-grid">
-                ${statCard("Total Students", students.length, "♙", "Registered student accounts")}
-                ${statCard("Attendance Records", records.length, "◷", "All recorded attendance")}
-                ${statCard("Rendered Hours", totalHours(records).toFixed(2), "⌛", "Completed hours")}
-                ${statCard("Completed Sessions", records.filter(item => item.timeOut).length, "✓", "Time out recorded")}
-            </div>
-
-            ${panel(
-                "Student Attendance Summary",
-                table(["Student", "ID Number", "Records", "Hours", "Completed Sessions"], rows)
-            )}
-        `;
-    }
-
-    function setScanStatus(message, type = "") {
-        const status = $("#scan-status");
-        if (!status) return;
-
-        status.textContent = message;
-        status.className = "scanner-status" + (type ? " " + type : "");
-    }
-
-    function renderScanResult(record, message) {
-        const container = $("#scan-result");
-        if (!container) return;
-
-        container.innerHTML = `
-            <div class="info-grid">
-                <div class="info-card">
-                    <span>Student Name</span>
-                    <strong>${escapeHTML(record.studentName)}</strong>
-                </div>
-
-                <div class="info-card">
-                    <span>Student ID</span>
-                    <strong>${escapeHTML(record.studentId)}</strong>
-                </div>
-
-                <div class="info-card">
-                    <span>Date</span>
-                    <strong>${escapeHTML(formatDate(record.date))}</strong>
-                </div>
-
-                <div class="info-card">
-                    <span>Time In</span>
-                    <strong>${escapeHTML(record.timeIn || "—")}</strong>
-                </div>
-
-                <div class="info-card">
-                    <span>Time Out</span>
-                    <strong>${escapeHTML(record.timeOut || "—")}</strong>
-                </div>
-
-                <div class="info-card">
-                    <span>Rendered Hours</span>
-                    <strong>${Number(record.hours || 0).toFixed(2)} hrs</strong>
-                </div>
-            </div>
-
-            <div class="notice" style="margin-top:16px">
-                ${escapeHTML(message)}
-            </div>`;
-    }
-
-    function handleStudentScan(decodedText, supervisor) {
-        if (scannerBusy) return;
-
-        scannerBusy = true;
-
-        try {
-            let payload;
-
-            try {
-                payload = JSON.parse(decodedText);
-            } catch (error) {
-                setScanStatus("Invalid QR code. Please scan an InternTrack student QR code.", "error");
-                return;
-            }
-
-            if (
-                !payload ||
-                payload.app !== "InternTrack" ||
-                payload.type !== "student" ||
-                !payload.id
-            ) {
-                setScanStatus("This QR code is not a valid InternTrack student code.", "error");
-                return;
-            }
-
-            const student = loadAccounts().find(item =>
-                String(item.id) === String(payload.id) && item.role === "student"
-            );
-
-            if (!student) {
-                setScanStatus("Student account not found. Ask the student to verify their registered account.", "error");
-                return;
-            }
-
-            const records = getAttendance();
-            const today = todayString();
-
-            let record = records.find(item =>
-                String(item.studentId) === String(student.id) && item.date === today
-            );
-
-            let message;
-
-            if (!record) {
-                record = {
-                    studentId: String(student.id),
-                    studentName: student.name,
-                    date: today,
-                    timeIn: timeString(),
-                    timeOut: "",
-                    hours: 0,
-                    supervisorId: String(supervisor.id),
-                    supervisorName: supervisor.name
-                };
-
-                records.push(record);
-                message = "Time In recorded successfully.";
-
-            } else if (record.timeIn && !record.timeOut) {
-                record.timeOut = timeString();
-                record.hours = hoursBetween(record.timeIn, record.timeOut);
-                record.supervisorId = String(supervisor.id);
-                record.supervisorName = supervisor.name;
-
-                message = `Time Out recorded. Rendered hours: ${record.hours.toFixed(2)}.`;
-
-            } else {
-                setScanStatus("Attendance for this student is already complete today.", "error");
-                renderScanResult(record, "This student already has a Time In and Time Out record for today.");
-                return;
-            }
-
-            saveAttendance(records);
-            setScanStatus(message, "success");
-            renderScanResult(record, message);
-
-        } finally {
-            window.setTimeout(() => {
-                scannerBusy = false;
-            }, 1200);
-        }
-    }
-
-    async function startScanner(account) {
-        if (getRole(account) !== "supervisor") {
-            setScanStatus("Only supervisors can start the attendance scanner.", "error");
-            return;
-        }
-
-        if (scannerStarting || activeScanner) return;
-
-        if (!window.Html5Qrcode) {
-            setScanStatus("The QR scanner library did not load. Check your internet connection and reload the page.", "error");
-            return;
-        }
-
-        scannerStarting = true;
-
-        scannerStartButton = $("#start-scanner");
-        scannerStopButton = $("#stop-scanner");
-
-        if (scannerStartButton) scannerStartButton.disabled = true;
-
-        try {
-            activeScanner = new Html5Qrcode("qr-reader");
-
-            setScanStatus("Starting camera. Please allow camera permission.");
-
-            await activeScanner.start(
-                { facingMode: "environment" },
-                {
-                    fps: 10,
-                    qrbox: { width: 240, height: 240 },
-                    aspectRatio: 1
-                },
-                decodedText => handleStudentScan(decodedText, account),
-                () => {}
-            );
-
-            if (scannerStopButton) scannerStopButton.disabled = false;
-
-            setScanStatus("Camera is active. Point it at a student's QR code.", "success");
-
-        } catch (error) {
-            console.error("Camera start failed:", error);
-
-            if (activeScanner) {
-                try {
-                    await activeScanner.clear();
-                } catch (clearError) {
-                    console.warn(clearError);
+                `
+                        : ""
                 }
-            }
-
-            activeScanner = null;
-
-            setScanStatus("Unable to start camera. Allow camera access and use HTTPS or localhost.", "error");
-
-        } finally {
-            scannerStarting = false;
-
-            if (scannerStartButton) {
-                scannerStartButton.disabled = Boolean(activeScanner);
-            }
-        }
-    }
-
-    async function stopScanner() {
-        if (!activeScanner) {
-            if (scannerStopButton) scannerStopButton.disabled = true;
-            if (scannerStartButton) scannerStartButton.disabled = false;
-            return;
-        }
-
-        const scanner = activeScanner;
-        activeScanner = null;
-
-        try {
-            if (scanner.isScanning) {
-                await scanner.stop();
-            }
-        } catch (error) {
-            console.warn("Unable to stop scanner cleanly:", error);
-        }
-
-        try {
-            await scanner.clear();
-        } catch (error) {
-            console.warn("Unable to clear scanner:", error);
-        }
-
-        if (scannerStopButton) scannerStopButton.disabled = true;
-        if (scannerStartButton) scannerStartButton.disabled = false;
-
-        if ($("#scan-status")) {
-            setScanStatus("Camera stopped. Press Start Camera to scan again.");
-        }
-    }
-
-    function generateStudentQR(account) {
-        const container = $("#student-qr");
-        if (!container) return;
-
-        container.innerHTML = "";
-
-        if (!window.QRCode) {
-            container.innerHTML = '<span class="muted">QR library unavailable. Check your internet connection.</span>';
-            return;
-        }
-
-        const payload = JSON.stringify({
-            app: "InternTrack",
-            type: "student",
-            id: String(account.id)
-        });
-
-        new QRCode(container, {
-            text: payload,
-            width: 220,
-            height: 220,
-            colorDark: "#171717",
-            colorLight: "#ffffff",
-            correctLevel: QRCode.CorrectLevel.H
-        });
-    }
-
-    function bindPageActions(pageId, account, role) {
-        if ((pageId === "my-qr" || pageId === "attendance") && role === "student") {
-            generateStudentQR(account);
-
-            const downloadButton = $("#download-qr");
-
-            if (downloadButton) {
-                downloadButton.addEventListener("click", () => {
-                    const container = $("#student-qr");
-                    const image = container && container.querySelector("img");
-                    const canvas = container && container.querySelector("canvas");
-
-                    let url = "";
-
-                    if (image && image.src) {
-                        url = image.src;
-                    } else if (canvas) {
-                        url = canvas.toDataURL("image/png");
+                <div class="list-stack">
+                    ${
+                        filtered.length
+                            ? filtered
+                                  .map((st) => {
+                                      const rendered = getStudentRenderedHours(st.id);
+                                      const req = Number(st.requiredHours) || DEFAULT_REQUIRED_HOURS;
+                                      const pct = Math.min(100, Math.round((rendered / req) * 100));
+                                      return `
+                                <div class="list-item list-item-stacked">
+                                    <div class="progress-block">
+                                        <div class="progress-meta">
+                                            <strong>${escapeHTML(st.name)} (${escapeHTML(st.idNumber)})</strong>
+                                            <span>${escapeHTML(formatHours(rendered))} / ${escapeHTML(String(req))} hrs (${pct}%)</span>
+                                        </div>
+                                        <div class="progress-track">
+                                            <div class="progress-fill" style="width: ${pct}%;"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                                  })
+                                  .join("")
+                            : `<div class="empty-state"><h3>No progress records</h3><p>Verified attendance hours will update progress here.</p></div>`
                     }
+                </div>
+            </div>
+        `;
 
-                    if (!url) {
-                        setMessage("#qr-message", "QR code is not ready yet.", "error");
-                        return;
-                    }
-
-                    const link = document.createElement("a");
-                    link.href = url;
-                    link.download = `InternTrack-QR-${account.id}.png`;
-
-                    document.body.appendChild(link);
-                    link.click();
-                    link.remove();
-
-                    setMessage("#qr-message", "QR code download started.", "success");
-                });
-            }
-        }
-
-        if (pageId === "scan-attendance" && role === "supervisor") {
-            const startButton = $("#start-scanner");
-            const stopButton = $("#stop-scanner");
-
-            scannerStartButton = startButton;
-            scannerStopButton = stopButton;
-
-            if (startButton) {
-                startButton.addEventListener("click", () => startScanner(account));
-            }
-
-            if (stopButton) {
-                stopButton.addEventListener("click", stopScanner);
-            }
-        }
-
-        if (pageId === "tasks" && role === "student") {
-            document.querySelectorAll(".task-submit-form").forEach(form => {
-                form.addEventListener("submit", event => {
-                    event.preventDefault();
-
-                    const taskId = form.dataset.taskId;
-                    const noteField = form.querySelector("textarea");
-                    const note = noteField ? noteField.value.trim() : "";
-
-                    if (!taskId || !note) return;
-
-                    const records = readJSON(KEYS.submissions, []);
-                    const list = Array.isArray(records) ? records : [];
-
-                    const existing = list.find(item =>
-                        String(item.studentId) === String(account.id) && item.taskId === taskId
-                    );
-
-                    if (existing) {
-                        existing.note = note;
-                        existing.date = todayString();
-                    } else {
-                        list.push({
-                            taskId,
-                            studentId: String(account.id),
-                            studentName: account.name,
-                            note,
-                            date: todayString()
-                        });
-                    }
-
-                    saveJSON(KEYS.submissions, list);
-                    showPage("tasks");
-                });
+        const searchEl = $("prog-search-input");
+        const statusEl = $("prog-status-select");
+        if (searchEl) {
+            searchEl.addEventListener("input", (e) => {
+                progressFilterSearch = e.target.value;
+                renderProgressPage(account);
             });
         }
+        if (statusEl) {
+            statusEl.addEventListener("change", (e) => {
+                progressFilterStatus = e.target.value;
+                renderProgressPage(account);
+            });
+        }
+    }
 
-        if (pageId === "requirements") {
-            const studentForm = $("#requirement-form");
+    // SUPERVISOR INTERN EVALUATION & FEEDBACK + UPDATABLE
+    function renderEvaluationPage(account) {
+        const allAccounts = getAccounts();
+        const assignedStudents = account.role === "supervisor" ? getAssignedStudentsForSupervisor(account.id) : [];
+        const evaluations = getEvaluations();
+        const evalToEdit = editingEvalId ? evaluations.find((ev) => ev.id === editingEvalId) : null;
 
-            if (studentForm && role === "student") {
-                studentForm.addEventListener("submit", event => {
-                    event.preventDefault();
+        const evalFormHTML = account.role === "supervisor"
+            ? `
+                <div class="panel">
+                    <div class="panel-header">
+                        <div>
+                            <h3>${evalToEdit ? "Update Student Evaluation" : "Evaluate Assigned Intern"}</h3>
+                            <p>${evalToEdit ? "Edit the rating or feedback notes." : "Rate your assigned intern's performance and provide feedback."}</p>
+                        </div>
+                    </div>
+                    <form id="evaluate-intern-form">
+                        <div class="form-grid">
+                            <div>
+                                <label for="eval-student-select">Assigned Intern</label>
+                                <select id="eval-student-select" required>
+                                    <option value="">Select Assigned Intern</option>
+                                    ${assignedStudents
+                                        .map(
+                                            (st) => `<option value="${escapeHTML(st.id)}" ${evalToEdit && evalToEdit.studentId === st.id ? "selected" : ""}>${escapeHTML(st.name)} (${escapeHTML(st.idNumber)})</option>`
+                                        )
+                                        .join("")}
+                                </select>
+                            </div>
+                            <div>
+                                <label for="eval-rating">Rating (1 to 5)</label>
+                                <select id="eval-rating" required>
+                                    <option value="5" ${!evalToEdit || Number(evalToEdit.rating) === 5 ? "selected" : ""}>5 - Excellent</option>
+                                    <option value="4" ${evalToEdit && Number(evalToEdit.rating) === 4 ? "selected" : ""}>4 - Very Good</option>
+                                    <option value="3" ${evalToEdit && Number(evalToEdit.rating) === 3 ? "selected" : ""}>3 - Satisfactory</option>
+                                    <option value="2" ${evalToEdit && Number(evalToEdit.rating) === 2 ? "selected" : ""}>2 - Needs Improvement</option>
+                                    <option value="1" ${evalToEdit && Number(evalToEdit.rating) === 1 ? "selected" : ""}>1 - Poor</option>
+                                </select>
+                            </div>
+                            <div class="full-span">
+                                <label for="eval-feedback">Evaluation Feedback</label>
+                                <textarea id="eval-feedback" rows="3" placeholder="Write constructive feedback for the student intern..." required>${escapeHTML(evalToEdit ? evalToEdit.feedback : "")}</textarea>
+                            </div>
+                        </div>
+                        <div class="form-submit-row btn-row">
+                            <button type="submit" class="primary-btn">${evalToEdit ? "Update Evaluation" : "Submit Evaluation"}</button>
+                            ${
+                                evalToEdit
+                                    ? `<button type="button" id="cancel-eval-edit-btn" class="secondary-btn">Cancel Edit</button>`
+                                    : ""
+                            }
+                        </div>
+                        <p id="eval-submit-message" class="form-message"></p>
+                    </form>
+                </div>
+            `
+            : "";
 
-                    const name = $("#requirement-name").value.trim();
-                    if (!name) return;
+        const visibleEvals = account.role === "student"
+            ? evaluations.filter((ev) => ev.studentId === account.id)
+            : account.role === "supervisor"
+            ? evaluations.filter((ev) => ev.supervisorId === account.id)
+            : evaluations;
 
-                    const records = readJSON(KEYS.requirements, []);
+        const filteredEvals = visibleEvals.filter((ev) => {
+            const st = allAccounts.find((a) => a.id === ev.studentId);
+            const matchesSearch =
+                !evalFilterSearch ||
+                (st &&
+                    (st.name.toLowerCase().includes(evalFilterSearch.toLowerCase()) ||
+                        st.idNumber.toLowerCase().includes(evalFilterSearch.toLowerCase()))) ||
+                (ev.feedback || "").toLowerCase().includes(evalFilterSearch.toLowerCase());
+            const matchesRating = evalFilterRating === "all" || Number(ev.rating) === Number(evalFilterRating);
+            return matchesSearch && matchesRating;
+        });
 
-                    records.push({
-                        studentId: String(account.id),
-                        studentName: account.name,
-                        name,
-                        status: "Pending",
-                        date: todayString()
-                    });
+        const evalListHTML = filteredEvals.length
+            ? filteredEvals
+                  .map((ev) => {
+                      const student = allAccounts.find((a) => a.id === ev.studentId);
+                      const supervisor = allAccounts.find((a) => a.id === ev.supervisorId);
+                      return `
+                        <div class="list-item list-item-stacked">
+                            <div class="task-card-top">
+                                <div>
+                                    <strong>${escapeHTML(student ? `${student.name} (${student.idNumber})` : "Student Intern")}</strong>
+                                    <p class="muted">Evaluated by ${escapeHTML(supervisor ? supervisor.name : "Supervisor")} · ${escapeHTML(formatDateTime(ev.updatedAt || ev.createdAt))}</p>
+                                </div>
+                                <span class="badge success">Rating: ${escapeHTML(String(ev.rating))} / 5</span>
+                            </div>
+                            <p>${escapeHTML(ev.feedback)}</p>
+                            ${
+                                account.role === "supervisor" && ev.supervisorId === account.id
+                                    ? `
+                                        <div class="btn-row" style="margin-top: 10px;">
+                                            <button type="button" class="small-btn edit-eval-btn" data-eval-id="${escapeHTML(ev.id)}">Edit / Update</button>
+                                            <button type="button" class="small-btn danger-btn delete-eval-btn" data-eval-id="${escapeHTML(ev.id)}">Delete</button>
+                                        </div>
+                                    `
+                                    : ""
+                            }
+                        </div>
+                    `;
+                  })
+                  .join("")
+            : `<div class="empty-state"><h3>No evaluations yet</h3><p>Submitted intern evaluations will appear here.</p></div>`;
 
-                    saveJSON(KEYS.requirements, records);
-                    showPage("requirements");
-                });
-            }
+        contentArea.innerHTML = `
+            ${evalFormHTML}
+            <div class="panel">
+                <div class="panel-header">
+                    <div>
+                        <h3>Evaluation Records & Feedback</h3>
+                        <p>Review, update, or filter ratings and feedback notes.</p>
+                    </div>
+                </div>
+                <div class="filter-bar">
+                    <input id="eval-search-input" type="text" placeholder="Search intern or feedback..." value="${escapeHTML(evalFilterSearch)}">
+                    <select id="eval-rating-select">
+                        <option value="all" ${evalFilterRating === "all" ? "selected" : ""}>All Ratings</option>
+                        <option value="5" ${evalFilterRating === "5" ? "selected" : ""}>5 Stars</option>
+                        <option value="4" ${evalFilterRating === "4" ? "selected" : ""}>4 Stars</option>
+                        <option value="3" ${evalFilterRating === "3" ? "selected" : ""}>3 Stars</option>
+                        <option value="2" ${evalFilterRating === "2" ? "selected" : ""}>2 Stars</option>
+                        <option value="1" ${evalFilterRating === "1" ? "selected" : ""}>1 Star</option>
+                    </select>
+                </div>
+                <div class="list-stack">${evalListHTML}</div>
+            </div>
+        `;
 
-            const reviewForm = $("#requirement-review-form");
+        const evalForm = $("evaluate-intern-form");
+        if (evalForm) {
+            evalForm.addEventListener("submit", (e) => {
+                e.preventDefault();
+                const msg = $("eval-submit-message");
+                msg.className = "form-message";
 
-            if (reviewForm && (role === "supervisor" || role === "coordinator")) {
-                reviewForm.addEventListener("submit", event => {
-                    event.preventDefault();
+                const studentId = $("eval-student-select").value;
+                const rating = Number($("eval-rating").value);
+                const feedback = $("eval-feedback").value.trim();
 
-                    const studentId = $("#review-student-id").value.trim();
-                    const name = $("#review-requirement-name").value.trim();
-                    const status = $("#review-status").value;
+                if (!studentId || !rating || !feedback) {
+                    msg.classList.add("error");
+                    msg.textContent = "Please select an assigned intern, rating, and feedback.";
+                    return;
+                }
 
-                    const student = loadAccounts().find(item =>
-                        String(item.id) === studentId && item.role === "student"
-                    );
-
-                    if (!student) {
-                        alert("Student ID not found. Please enter a registered student ID.");
-                        return;
-                    }
-
-                    const records = readJSON(KEYS.requirements, []);
-
-                    const existing = records.find(item =>
-                        String(item.studentId) === studentId &&
-                        item.name.toLowerCase() === name.toLowerCase()
-                    );
-
-                    if (existing) {
-                        existing.status = status;
-                        existing.date = todayString();
-                    } else {
-                        records.push({
+                const updatedEvals = getEvaluations();
+                if (editingEvalId) {
+                    const idx = updatedEvals.findIndex((ev) => ev.id === editingEvalId);
+                    if (idx !== -1) {
+                        updatedEvals[idx] = {
+                            ...updatedEvals[idx],
                             studentId,
-                            studentName: student.name,
-                            name,
-                            status,
-                            date: todayString()
-                        });
+                            rating,
+                            feedback,
+                            updatedAt: new Date().toISOString()
+                        };
                     }
+                    editingEvalId = null;
+                    saveEvaluations(updatedEvals);
+                    pushNotification(studentId, "Evaluation Updated", `${account.name} updated your evaluation (${rating}/5).`);
+                    msg.classList.add("success");
+                    msg.textContent = "Evaluation updated successfully!";
+                } else {
+                    updatedEvals.unshift({
+                        id: "eval_" + Date.now() + "_" + Math.random().toString(36).slice(2, 6),
+                        supervisorId: account.id,
+                        studentId,
+                        rating,
+                        feedback,
+                        createdAt: new Date().toISOString()
+                    });
+                    saveEvaluations(updatedEvals);
+                    pushNotification(studentId, "New Internship Evaluation", `${account.name} submitted an evaluation (${rating}/5) for you.`);
+                    msg.classList.add("success");
+                    msg.textContent = "Evaluation submitted successfully!";
+                }
 
-                    saveJSON(KEYS.requirements, records);
-                    showPage("requirements");
-                });
-            }
-        }
-    }
-
-    function initLogin() {
-        $("#login-form").addEventListener("submit", event => {
-            event.preventDefault();
-            clearMessage("#login-message");
-
-            const id = $("#login-id").value.trim();
-            const password = $("#login-password").value;
-
-            const account = loadAccounts().find(item =>
-                String(item.id) === id && item.password === password
-            );
-
-            if (!account) {
-                setMessage("#login-message", "Incorrect ID number or password.");
-                return;
-            }
-
-            if (!menus[account.role]) {
-                setMessage("#login-message", "This account has an invalid role.");
-                return;
-            }
-
-            signIn(account);
-        });
-    }
-
-    function initRegister() {
-        $("#register-form").addEventListener("submit", event => {
-            event.preventDefault();
-            clearMessage("#register-message");
-
-            const name = $("#register-name").value.trim();
-            const id = $("#register-id").value.trim();
-            const role = $("#register-role").value;
-            const password = $("#register-password").value;
-            const confirm = $("#register-confirm").value;
-
-            if (name.length < 2) {
-                setMessage("#register-message", "Please enter your complete name.");
-                return;
-            }
-
-            if (id.length < 5) {
-                setMessage("#register-message", "ID number must contain at least 5 characters.");
-                return;
-            }
-
-            if (password.length < 6) {
-                setMessage("#register-message", "Password must contain at least 6 characters.");
-                return;
-            }
-
-            if (password !== confirm) {
-                setMessage("#register-message", "Passwords do not match.");
-                return;
-            }
-
-            if (!menus[role]) {
-                setMessage("#register-message", "Please choose a valid account role.");
-                return;
-            }
-
-            const accounts = loadAccounts();
-
-            if (accounts.some(item => String(item.id) === id)) {
-                setMessage("#register-message", "An account with this ID number already exists.");
-                return;
-            }
-
-            const account = { name, id, role, password };
-
-            accounts.push(account);
-            saveAccounts(accounts);
-
-            $("#register-form").reset();
-
-            setMessage(
-                "#register-message",
-                "Account created successfully. You can now sign in.",
-                "success"
-            );
-        });
-    }
-
-    function initForgotPassword() {
-        $("#forgot-form").addEventListener("submit", event => {
-            event.preventDefault();
-            clearMessage("#forgot-message");
-
-            const id = $("#forgot-id").value.trim();
-            const password = $("#forgot-password").value;
-            const confirm = $("#forgot-confirm").value;
-
-            if (password.length < 6) {
-                setMessage("#forgot-message", "New password must contain at least 6 characters.");
-                return;
-            }
-
-            if (password !== confirm) {
-                setMessage("#forgot-message", "Passwords do not match.");
-                return;
-            }
-
-            const accounts = loadAccounts();
-            const account = accounts.find(item => String(item.id) === id);
-
-            if (!account) {
-                setMessage("#forgot-message", "No account was found with this ID number.");
-                return;
-            }
-
-            account.password = password;
-            saveAccounts(accounts);
-
-            $("#forgot-form").reset();
-
-            setMessage(
-                "#forgot-message",
-                "Password updated. You can now sign in.",
-                "success"
-            );
-        });
-    }
-
-    function initNavigation() {
-        $("#show-register").addEventListener("click", () => {
-            clearMessage("#register-message");
-            showOnly("register-page");
-        });
-
-        $("#show-login").addEventListener("click", () => {
-            clearMessage("#login-message");
-            showOnly("login-page");
-        });
-
-        $("#show-forgot").addEventListener("click", () => {
-            clearMessage("#forgot-message");
-            showOnly("forgot-page");
-        });
-
-        $("#forgot-back").addEventListener("click", () => {
-            clearMessage("#login-message");
-            showOnly("login-page");
-        });
-
-        $("#logout-btn").addEventListener("click", signOut);
-        $("#theme-toggle").addEventListener("click", toggleTheme);
-
-        const studentTheme = $("#student-theme-toggle");
-
-        if (studentTheme) {
-            studentTheme.addEventListener("click", event => {
-                event.stopPropagation();
-                toggleTheme();
+                evalForm.reset();
+                renderEvaluationPage(account);
             });
         }
 
-        const userToggle = $("#sidebar-user-toggle");
-
-        if (userToggle) {
-            userToggle.addEventListener("click", toggleStudentMenu);
+        const cancelEvalBtn = $("cancel-eval-edit-btn");
+        if (cancelEvalBtn) {
+            cancelEvalBtn.addEventListener("click", () => {
+                editingEvalId = null;
+                renderEvaluationPage(account);
+            });
         }
 
-        document.querySelectorAll("[data-quick-page]").forEach(button => {
-            button.addEventListener("click", () => showPage(button.dataset.quickPage));
+        contentArea.querySelectorAll(".edit-eval-btn").forEach((btn) => {
+            btn.addEventListener("click", () => {
+                editingEvalId = btn.getAttribute("data-eval-id");
+                renderEvaluationPage(account);
+            });
         });
 
-        document.addEventListener("click", event => {
-            const wrap = $(".sidebar-user-wrap");
+        contentArea.querySelectorAll(".delete-eval-btn").forEach((btn) => {
+            btn.addEventListener("click", () => {
+                const evalId = btn.getAttribute("data-eval-id");
+                if (editingEvalId === evalId) editingEvalId = null;
+                saveEvaluations(getEvaluations().filter((ev) => ev.id !== evalId));
+                renderEvaluationPage(account);
+            });
+        });
 
-            if (!wrap || wrap.contains(event.target)) return;
+        $("eval-search-input").addEventListener("input", (e) => {
+            evalFilterSearch = e.target.value;
+            renderEvaluationPage(account);
+        });
 
-            closeStudentMenu();
+        $("eval-rating-select").addEventListener("change", (e) => {
+            evalFilterRating = e.target.value;
+            renderEvaluationPage(account);
         });
     }
 
-    function init() {
-        applyTheme();
-        initLogin();
-        initRegister();
-        initForgotPassword();
-        initNavigation();
+    function renderReportsPage(account) {
+        const accounts = getAccounts();
+        const students = accounts.filter((a) => a.role === "student");
+        const assignments = getAssignments().filter((a) => a.status === "Active");
+        const evaluations = getEvaluations();
 
-        const isLoggedIn = localStorage.getItem(KEYS.session) === "true";
-        const account = getCurrentAccount();
+        contentArea.innerHTML = `
+            <div class="panel">
+                <div class="report-header-box">
+                    <h2>InternTrack Summary Report</h2>
+                    <p>Generated by ${escapeHTML(account.name)} (${escapeHTML(roleNames[account.role] || account.role)})</p>
+                </div>
+                <div class="filter-bar no-print">
+                    <input id="report-search-input" type="text" placeholder="Filter report rows..." value="${escapeHTML(reportSearch)}">
+                    <select id="report-type-select">
+                        <option value="assignments" ${reportType === "assignments" ? "selected" : ""}>Student Assignments & Hours</option>
+                        <option value="evaluations" ${reportType === "evaluations" ? "selected" : ""}>Evaluations Summary</option>
+                    </select>
+                    <button type="button" id="print-report-btn" class="primary-btn">Print Report</button>
+                </div>
+                <div class="table-wrap">
+                    ${
+                        reportType === "evaluations"
+                            ? `
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Student</th>
+                                    <th>Supervisor</th>
+                                    <th>Rating</th>
+                                    <th>Feedback</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${
+                                    evaluations.length
+                                        ? evaluations
+                                              .filter(
+                                                  (ev) =>
+                                                      !reportSearch ||
+                                                      (ev.feedback || "").toLowerCase().includes(reportSearch.toLowerCase())
+                                              )
+                                              .map((ev) => {
+                                                  const st = accounts.find((a) => a.id === ev.studentId);
+                                                  const sup = accounts.find((a) => a.id === ev.supervisorId);
+                                                  return `
+                                                <tr>
+                                                    <td>${escapeHTML(st ? st.name : "-")}</td>
+                                                    <td>${escapeHTML(sup ? sup.name : "-")}</td>
+                                                    <td>${escapeHTML(String(ev.rating))} / 5</td>
+                                                    <td>${escapeHTML(ev.feedback)}</td>
+                                                </tr>
+                                            `;
+                                              })
+                                              .join("")
+                                        : `<tr><td colspan="4" class="empty-state">No evaluation rows.</td></tr>`
+                                }
+                            </tbody>
+                        </table>
+                    `
+                            : `
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID Number</th>
+                                    <th>Student</th>
+                                    <th>Company & Supervisor</th>
+                                    <th>Rendered Hours</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${
+                                    students.length
+                                        ? students
+                                              .filter(
+                                                  (st) =>
+                                                      !reportSearch ||
+                                                      st.name.toLowerCase().includes(reportSearch.toLowerCase()) ||
+                                                      st.idNumber.toLowerCase().includes(reportSearch.toLowerCase())
+                                              )
+                                              .map((st) => {
+                                                  const assign = assignments.find((a) => a.studentId === st.id);
+                                                  return `
+                                                <tr>
+                                                    <td>${escapeHTML(st.idNumber)}</td>
+                                                    <td>${escapeHTML(st.name)}</td>
+                                                    <td>${escapeHTML(assign ? `${assign.company} · ${assign.supervisorName}` : "Unassigned")}</td>
+                                                    <td>${formatHours(getStudentRenderedHours(st.id))} / ${st.requiredHours || DEFAULT_REQUIRED_HOURS} hrs</td>
+                                                </tr>
+                                            `;
+                                              })
+                                              .join("")
+                                        : `<tr><td colspan="4" class="empty-state">No student rows.</td></tr>`
+                                }
+                            </tbody>
+                        </table>
+                    `
+                    }
+                </div>
+            </div>
+        `;
 
-        if (isLoggedIn && account && menus[account.role]) {
-            signIn(account);
-        } else {
-            localStorage.removeItem(KEYS.session);
-            localStorage.removeItem(KEYS.current);
-            showOnly("login-page");
+        $("report-search-input").addEventListener("input", (e) => {
+            reportSearch = e.target.value;
+            renderReportsPage(account);
+        });
+
+        $("report-type-select").addEventListener("change", (e) => {
+            reportType = e.target.value;
+            renderReportsPage(account);
+        });
+
+        $("print-report-btn").addEventListener("click", () => window.print());
+    }
+
+    function renderNotificationsPage(account) {
+        const allNotifs = getNotifications();
+        const mine = allNotifs.filter((n) => n.userId === account.id);
+
+        const updated = allNotifs.map((n) => (n.userId === account.id ? { ...n, read: true } : n));
+        saveNotifications(updated);
+        updateUnreadBadge(account.id);
+
+        contentArea.innerHTML = `
+            <div class="panel">
+                <div class="panel-header">
+                    <div>
+                        <h3>Notifications</h3>
+                        <p>Updates on tasks, evaluations, and account activity.</p>
+                    </div>
+                </div>
+                <div class="list-stack">
+                    ${
+                        mine.length
+                            ? mine
+                                  .map(
+                                      (n) => `
+                                <div class="list-item list-item-stacked">
+                                    <strong>${escapeHTML(n.title)}</strong>
+                                    <p>${escapeHTML(n.message)}</p>
+                                    <p class="muted">${escapeHTML(formatDateTime(n.createdAt))}</p>
+                                </div>
+                            `
+                                  )
+                                  .join("")
+                            : `<div class="empty-state"><h3>No notifications</h3><p>You have no alerts yet.</p></div>`
+                    }
+                </div>
+            </div>
+        `;
+    }
+
+    function renderStudentQrSection(account) {
+        if (account.role !== "student") return "";
+        return `
+            <div class="qr-card">
+                <h3>Student QR Code</h3>
+                <p>Your personal InternTrack QR ID for quick identification.</p>
+                <div id="student-qr-box" class="qr-code-box"></div>
+                <div class="qr-id">${escapeHTML(account.idNumber || account.id)}</div>
+                <button type="button" id="download-qr-btn" class="secondary-btn">Download QR Code</button>
+            </div>
+        `;
+    }
+
+    function initStudentQrCode(account) {
+        if (account.role !== "student") return;
+        const box = $("student-qr-box");
+        if (!box || typeof QRCode === "undefined") return;
+
+        box.innerHTML = "";
+        const payload = JSON.stringify({
+            system: "InternTrack",
+            role: "student",
+            idNumber: account.idNumber,
+            name: account.name,
+            program: account.program || ""
+        });
+
+        new QRCode(box, {
+            text: payload,
+            width: 190,
+            height: 190,
+            colorDark: "#181a1f",
+            colorLight: "#ffffff",
+            correctLevel: QRCode.CorrectLevel.M
+        });
+
+        const dlBtn = $("download-qr-btn");
+        if (dlBtn) {
+            dlBtn.addEventListener("click", () => {
+                const canvas = box.querySelector("canvas");
+                const img = box.querySelector("img");
+                let dataUrl = "";
+                if (canvas) {
+                    dataUrl = canvas.toDataURL("image/png");
+                } else if (img && img.src) {
+                    dataUrl = img.src;
+                }
+                if (!dataUrl) return;
+                const link = document.createElement("a");
+                link.href = dataUrl;
+                link.download = `${account.idNumber || "student"}-qr.png`;
+                link.click();
+            });
         }
     }
-    
-    document.addEventListener("DOMContentLoaded", init);
+
+    function renderProfilePage(account) {
+        const qrSectionHTML = renderStudentQrSection(account);
+        const profileFormHTML = `
+            <div class="panel">
+                <div class="panel-header">
+                    <div>
+                        <h3>Update My Profile</h3>
+                        <p>Edit and save your account details.</p>
+                    </div>
+                </div>
+                <form id="update-profile-form">
+                    <div class="form-grid">
+                        <div>
+                            <label for="prof-name">Full Name</label>
+                            <input id="prof-name" type="text" value="${escapeHTML(account.name)}" required>
+                        </div>
+                        <div>
+                            <label for="prof-email">Email Address</label>
+                            <input id="prof-email" type="email" value="${escapeHTML(account.email)}" required>
+                        </div>
+                        <div>
+                            <label for="prof-contact">Contact Number</label>
+                            <input id="prof-contact" type="text" value="${escapeHTML(account.contact || "")}">
+                        </div>
+                        <div>
+                            <label for="prof-req-hours">Required Internship Hours</label>
+                            <input id="prof-req-hours" type="number" min="1" value="${escapeHTML(String(account.requiredHours || DEFAULT_REQUIRED_HOURS))}">
+                        </div>
+                        <div class="full-span">
+                            <label for="prof-address">Address</label>
+                            <textarea id="prof-address" rows="2">${escapeHTML(account.address || "")}</textarea>
+                        </div>
+                    </div>
+                    <div class="form-submit-row">
+                        <button type="submit" class="primary-btn">Save Changes</button>
+                    </div>
+                    <p id="prof-save-msg" class="form-message"></p>
+                </form>
+            </div>
+        `;
+
+        contentArea.innerHTML = account.role === "student"
+            ? `<div class="profile-layout">${qrSectionHTML}${profileFormHTML}</div>`
+            : profileFormHTML;
+
+        initStudentQrCode(account);
+
+        $("update-profile-form").addEventListener("submit", (e) => {
+            e.preventDefault();
+            const msg = $("prof-save-msg");
+            msg.className = "form-message";
+
+            const name = $("prof-name").value.trim();
+            const email = $("prof-email").value.trim().toLowerCase();
+            const contact = $("prof-contact").value.trim();
+            const requiredHours = Number($("prof-req-hours").value) || DEFAULT_REQUIRED_HOURS;
+            const address = $("prof-address").value.trim();
+
+            if (!name || !email) {
+                msg.classList.add("error");
+                msg.textContent = "Name and email are required.";
+                return;
+            }
+
+            const accounts = getAccounts();
+            const idx = accounts.findIndex((a) => a.id === account.id);
+            if (idx !== -1) {
+                accounts[idx] = {
+                    ...accounts[idx],
+                    name,
+                    email,
+                    contact,
+                    requiredHours,
+                    address
+                };
+                saveAccounts(accounts);
+                syncTopbarAccount(accounts[idx]);
+                msg.classList.add("success");
+                msg.textContent = "Profile updated successfully!";
+                renderProfilePage(accounts[idx]);
+            }
+        });
+    }
+
+    // INITIALIZATION
+    applyTheme(localStorage.getItem(KEYS.theme) || "light");
+    syncBrandSidebarState();
+
+    try {
+        const savedLogin = localStorage.getItem(KEYS.remembered);
+        if (savedLogin && $("login-id")) {
+            $("login-id").value = savedLogin;
+            if (rememberMeCheckbox) rememberMeCheckbox.checked = true;
+        }
+    } catch (_) {}
+
+    const isLoggedIn = localStorage.getItem(KEYS.session) === "true";
+    const activeAccount = getCurrentAccount();
+
+    if (isLoggedIn && activeAccount) {
+        showSystemPage(activeAccount);
+    } else {
+        showAuthPage("login");
+    }
 })();
